@@ -1,6 +1,10 @@
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const cors = require('cors');
+const { Resend } = require('resend');
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM = 'StudioRack <bookings@thestudiorack.com>';
 
 const app = express();
 app.use(cors({ origin: 'https://thestudiorack.com' }));
@@ -9,6 +13,75 @@ app.use(express.json());
 // Health check
 app.get('/', (req, res) => {
   res.json({ status: 'StudioRack payment server running' });
+});
+
+// ── Email templates ──
+function bookingConfirmationEmail({ studioName, bookingDate, startTime, hours, total }) {
+  return `
+  <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
+    <h1 style="font-size:22px;color:#0a0a0a;">Your booking is confirmed</h1>
+    <p style="color:#555;line-height:1.6;">Thanks for booking with StudioRack. Here are your details:</p>
+    <div style="background:#f7f5f2;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:6px 0;"><strong>Studio:</strong> ${studioName}</p>
+      <p style="margin:6px 0;"><strong>Date:</strong> ${bookingDate}</p>
+      <p style="margin:6px 0;"><strong>Start time:</strong> ${startTime}</p>
+      <p style="margin:6px 0;"><strong>Duration:</strong> ${hours} hour(s)</p>
+      <p style="margin:6px 0;"><strong>Total paid:</strong> &pound;${total}</p>
+    </div>
+    <p style="color:#555;line-height:1.6;">Just turn up at your booked time and create. If you have any questions, reply to this email.</p>
+    <p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p>
+  </div>`;
+}
+
+function hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, total, ownerPayout }) {
+  return `
+  <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
+    <h1 style="font-size:22px;color:#0a0a0a;">You've got a new booking!</h1>
+    <p style="color:#555;line-height:1.6;">Someone just booked your studio on StudioRack.</p>
+    <div style="background:#f7f5f2;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:6px 0;"><strong>Studio:</strong> ${studioName}</p>
+      <p style="margin:6px 0;"><strong>Date:</strong> ${bookingDate}</p>
+      <p style="margin:6px 0;"><strong>Start time:</strong> ${startTime}</p>
+      <p style="margin:6px 0;"><strong>Duration:</strong> ${hours} hour(s)</p>
+      <p style="margin:6px 0;"><strong>Your earnings (90%):</strong> &pound;${ownerPayout}</p>
+    </div>
+    <p style="color:#555;line-height:1.6;">Your payout will be sent within 48 hours of the rental date. Make sure your studio is ready for the booking.</p>
+    <p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p>
+  </div>`;
+}
+
+// ── Send booking emails ──
+app.post('/send-booking-emails', async (req, res) => {
+  try {
+    const { photographerEmail, hostEmail, studioName, bookingDate, startTime, hours, total } = req.body;
+    const ownerPayout = Math.round((total || 0) * 0.9);
+    const results = {};
+
+    if (photographerEmail) {
+      const r = await resend.emails.send({
+        from: FROM,
+        to: photographerEmail,
+        subject: `Booking confirmed - ${studioName}`,
+        html: bookingConfirmationEmail({ studioName, bookingDate, startTime, hours, total })
+      });
+      results.photographer = r.error ? r.error.message : 'sent';
+    }
+
+    if (hostEmail) {
+      const r = await resend.emails.send({
+        from: FROM,
+        to: hostEmail,
+        subject: `New booking for ${studioName}`,
+        html: hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, total, ownerPayout })
+      });
+      results.host = r.error ? r.error.message : 'sent';
+    }
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Email send error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Create a Stripe Payment Intent
