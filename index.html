@@ -1893,6 +1893,31 @@
         stripe_payment_id: paymentIntent.id
       });
 
+      // 4. Send confirmation emails (don't block the success screen if this fails)
+      try {
+        // Look up the studio owner's email if we have a real studio
+        let hostEmail = null;
+        if (currentStudio.owner_id) {
+          // owner email isn't directly queryable from anon; the server handles host lookup separately
+          hostEmail = currentStudio.owner_email || null;
+        }
+        fetch(PAYMENT_SERVER + '/send-booking-emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            photographerEmail: currentUser.email,
+            hostEmail: hostEmail,
+            studioName: currentStudio.name,
+            bookingDate: date,
+            startTime: time,
+            hours,
+            total
+          })
+        });
+      } catch (emailErr) {
+        console.error('Email trigger failed (booking still saved):', emailErr);
+      }
+
       document.getElementById('payment-modal').classList.remove('active');
       document.getElementById('success-modal').classList.add('active');
       stripeCard = null;
