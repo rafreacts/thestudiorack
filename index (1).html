@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioRack — Find & Book Photography Studios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0a0a0a;
+    --off-white: #f7f5f2;
+    --warm-white: #faf9f7;
+    --accent: #c8a96e;
+    --accent-dark: #a8893e;
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --border: #e8e4de;
+    --card-shadow: 0 8px 40px rgba(0,0,0,0.08);
+    --card-shadow-hover: 0 20px 60px rgba(0,0,0,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--warm-white);
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(250,249,247,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--black);
+    letter-spacing: -0.5px;
+    text-decoration: none;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 400;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-ghost {
+    background: none;
+    border: 1px solid var(--border);
+    padding: 10px 20px;
+    border-radius: 100px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-ghost:hover { background: var(--off-white); border-color: #ccc; }
+
+  .btn-primary {
+    background: var(--black);
+    border: 1px solid var(--black);
+    padding: 10px 22px;
+    border-radius: 100px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-primary:hover { background: #333; }
+
+  /* HERO */
+  .hero {
+    margin-top: 72px;
+    padding: 80px 48px 60px;
+    text-align: center;
+    position: relative;
+  }
+
+  .hero-eyebrow {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(44px, 6vw, 80px);
+    font-weight: 500;
+    line-height: 1.1;
+    color: var(--black);
+    margin-bottom: 20px;
+    letter-spacing: -2px;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero p {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 480px;
+    margin: 0 auto 48px;
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* SEARCH BAR */
+  .search-container {
+    max-width: 780px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    padding: 8px 8px 8px 0;
+  }
+
+  .search-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 24px;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .search-field:last-of-type { border-right: none; }
+
+  .search-field label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .search-field input, .search-field select {
+    border: none;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text-muted);
+    background: transparent;
+    font-weight: 300;
+    width: 100%;
+  }
+
+  .search-btn {
+    background: var(--black);
+    border: none;
+    width: 52px;
+    height: 52px;
+    border-radius: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    margin-right: 4px;
+  }
+
+  .search-btn:hover { background: #333; }
+
+  .search-btn svg { width: 20px; height: 20px; fill: white; }
+
+  /* FILTER TABS */
+  .filter-tabs {
+    padding: 32px 48px 0;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filter-tabs::-webkit-scrollbar { display: none; }
+
+  .filter-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    background: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .filter-tab:hover { background: white; border-color: var(--border); }
+  .filter-tab.active { background: white; border-color: var(--black); }
+
+  .filter-tab .icon { font-size: 22px; }
+
+  .filter-tab span {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  .filter-tab.active span { color: var(--text); font-weight: 500; }
+
+  /* STUDIO GRID */
+  .studios-section {
+    padding: 32px 48px 80px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+
+  .section-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+  }
+
+  .section-header a {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1px;
+    transition: color 0.2s;
+  }
+
+  .section-header a:hover { color: var(--text); }
+
+  .studio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 32px;
+  }
+
+  /* STUDIO CARD */
+  .studio-card {
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--card-shadow);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .studio-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    transform: translateY(-4px);
+  }
+
+  .card-image {
+    width: 100%;
+    height: 320px;
+    object-fit: cover;
+    display: block;
+    background: #e8e4de;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-image-placeholder {
+    width: 100%;
+    height: 320px;
+    background: linear-gradient(135deg, #e8e4de 0%, #d4cfc8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    color: #bbb;
+    position: relative;
+  }
+
+  .card-badge {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: white;
+    border-radius: 100px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+
+  .card-favourite {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+  }
+
+  .card-favourite:hover { transform: scale(1.1); }
+
+  .card-body {
+    padding: 20px 24px 24px;
+  }
+
+  .card-location {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--black);
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card-meta span {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .card-price strong {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--black);
+  }
+
+  .card-price span {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .card-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .card-rating .star { color: var(--accent); }
+
+  /* HOW IT WORKS */
+  .how-section {
+    background: var(--black);
+    padding: 100px 48px;
+    color: white;
+  }
+
+  .how-section .section-eyebrow {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .how-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(36px, 4vw, 56px);
+    font-weight: 500;
+    margin-bottom: 64px;
+    letter-spacing: -1px;
+    max-width: 500px;
+    line-height: 1.15;
+  }
+
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px;
+  }
+
+  .how-step {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .how-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 72px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.08);
+    line-height: 1;
+    margin-bottom: -16px;
+  }
+
+  .how-step h3 {
+    font-size: 18px;
+    font-weight: 500;
+    color: white;
+  }
+
+  .how-step p {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  /* LIST YOUR STUDIO CTA */
+  .cta-section {
+    padding: 100px 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .cta-content h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(36px, 4vw, 54px);
+    font-weight: 500;
+    letter-spacing: -1px;
+    margin-bottom: 20px;
+    line-height: 1.15;
+  }
+
+  .cta-content p {
+    font-size: 16px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-bottom: 36px;
+    font-weight: 300;
+    max-width: 420px;
+  }
+
+  .cta-stats {
+    display: flex;
+    gap: 40px;
+    margin-top: 48px;
+  }
+
+  .cta-stat strong {
+    display: block;
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    font-weight: 500;
+    color: var(--black);
+    letter-spacing: -1px;
+  }
+
+  .cta-stat span {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  .cta-image {
+    border-radius: 24px;
+    overflow: hidden;
+    height: 500px;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    position: relative;
+  }
+
+  .cta-image::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 60%);
+  }
+
+  /* FOOTER */
+  footer {
+    background: var(--black);
+    color: white;
+    padding: 60px 48px 40px;
+  }
+
+  .footer-top {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 48px;
+    padding-bottom: 48px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 32px;
+  }
+
+  .footer-brand .logo {
+    color: white;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .footer-brand p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.7;
+    font-weight: 300;
+    max-width: 240px;
+  }
+
+  .footer-col h4 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 16px;
+  }
+
+  .footer-col ul { list-style: none; }
+
+  .footer-col ul li {
+    margin-bottom: 10px;
+  }
+
+  .footer-col ul li a {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    text-decoration: none;
+    transition: color 0.2s;
+    font-weight: 300;
+  }
+
+  .footer-col ul li a:hover { color: white; }
+
+  .footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-bottom p {
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+    font-weight: 300;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: white;
+    border-radius: 24px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(20px);
+    transition: transform 0.3s;
+  }
+
+  .modal-overlay.active .modal {
+    transform: translateY(0);
+  }
+
+  .modal-images {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 8px;
+    height: 400px;
+    border-radius: 24px 24px 0 0;
+    overflow: hidden;
+  }
+
+  .modal-main-image {
+    background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 60px;
+  }
+
+  .modal-side-images {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .modal-side-image {
+    background: linear-gradient(135deg, #2a2a2a 0%, #444 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+  }
+
+  .modal-content {
+    padding: 32px;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 48px;
+  }
+
+  .modal-info h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .modal-info .location {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .modal-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .tag {
+    background: var(--off-white);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .modal-description {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.8;
+    margin-bottom: 24px;
+    font-weight: 300;
+  }
+
+  .modal-amenities h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  .amenity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .amenity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .amenity .icon { font-size: 18px; }
+
+  /* BOOKING CARD */
+  .booking-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: var(--card-shadow);
+    position: sticky;
+    top: 24px;
+    height: fit-content;
+  }
+
+  .booking-price {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .booking-price span {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  .booking-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    margin-bottom: 24px;
+    color: var(--text-muted);
+  }
+
+  .booking-dates {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .date-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .date-field {
+    padding: 14px 16px;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .date-field:last-child { border-right: none; }
+
+  .date-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .date-field input {
+    border: none;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: transparent;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .time-field {
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .time-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .time-field select {
+    border: none;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: transparent;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .btn-book {
+    width: 100%;
+    background: var(--black);
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 16px;
+  }
+
+  .btn-book:hover { background: #333; }
+
+  .booking-breakdown {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .breakdown-row.total {
+    color: var(--text);
+    font-weight: 600;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    background: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 10;
+  }
+
+  /* PAYMENT MODAL */
+  .payment-modal {
+    background: white;
+    border-radius: 24px;
+    width: 90%;
+    max-width: 480px;
+    padding: 40px;
+    transform: translateY(20px);
+    transition: transform 0.3s;
+  }
+
+  .modal-overlay.active .payment-modal {
+    transform: translateY(0);
+  }
+
+  .payment-modal h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .payment-modal p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+    font-weight: 300;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .form-group input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus { border-color: var(--black); }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .stripe-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 16px;
+    justify-content: center;
+  }
+
+  .stripe-lock { font-size: 14px; }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero h1, .hero p, .search-container {
+    animation: fadeUp 0.7s ease forwards;
+  }
+
+  .hero p { animation-delay: 0.1s; opacity: 0; }
+  .search-container { animation-delay: 0.2s; opacity: 0; }
+
+  .studio-card {
+    animation: fadeUp 0.5s ease forwards;
+    opacity: 0;
+  }
+
+  .studio-card:nth-child(1) { animation-delay: 0.1s; }
+  .studio-card:nth-child(2) { animation-delay: 0.2s; }
+  .studio-card:nth-child(3) { animation-delay: 0.3s; }
+  .studio-card:nth-child(4) { animation-delay: 0.4s; }
+
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    .hero { padding: 60px 20px 40px; }
+    .search-container { flex-direction: column; border-radius: 20px; padding: 16px; }
+    .search-field { border-right: none; border-bottom: 1px solid var(--border); padding: 12px 0; }
+    .search-field:last-of-type { border-bottom: none; }
+    .search-btn { width: 100%; height: 48px; border-radius: 12px; margin-right: 0; }
+    .studio-grid { grid-template-columns: 1fr; padding: 0; }
+    .studios-section { padding: 24px 20px 60px; }
+    .filter-tabs { padding: 24px 20px 0; }
+    .how-grid { grid-template-columns: 1fr; }
+    .cta-section { grid-template-columns: 1fr; }
+    .cta-image { display: none; }
+    .how-section, .cta-section { padding: 60px 20px; }
+    footer { padding: 40px 20px 32px; }
+    .footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
+    .modal-content { grid-template-columns: 1fr; }
+    .modal-images { height: 260px; grid-template-columns: 1fr; }
+    .modal-side-images { display: none; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">Studio<span>Rack</span></a>
+  <ul class="nav-links">
+    <li><a href="#" onclick="showSection('browse')">Browse Studios</a></li>
+    <li><a href="#" onclick="showSection('list')">List Your Studio</a></li>
+    <li><a href="#">How it Works</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="#" class="btn-ghost" onclick="showSection('list')">List your studio</a>
+    <a href="#" class="btn-primary" id="auth-btn" onclick="showAuthModal()">Sign in</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home-section">
+  <span class="hero-eyebrow">The UK's Photography Studio Marketplace</span>
+  <h1>Find your perfect<br><em>creative space</em></h1>
+  <p>Book photography studios across the UK. Fully equipped, instantly available, no phone calls needed.</p>
+
+  <div class="search-container">
+    <div class="search-field">
+      <label>Location</label>
+      <input type="text" placeholder="London, Manchester, Birmingham...">
+    </div>
+    <div class="search-field">
+      <label>Date</label>
+      <input type="date" id="search-date">
+    </div>
+    <div class="search-field">
+      <label>Studio Type</label>
+      <select>
+        <option value="">Any type</option>
+        <option>Infinity Wall</option>
+        <option>Natural Light</option>
+        <option>Fashion</option>
+        <option>Product</option>
+        <option>Film / Video</option>
+      </select>
+    </div>
+    <button class="search-btn" onclick="scrollToStudios()">
+      <svg viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</section>
+
+<!-- FILTER TABS -->
+<div class="filter-tabs" id="browse-section">
+  <button class="filter-tab active" onclick="setFilter(this)">
+    <span class="icon">🏙️</span>
+    <span>All Studios</span>
+  </button>
+  <button class="filter-tab" onclick="setFilter(this)">
+    <span class="icon">⬜</span>
+    <span>Infinity Wall</span>
+  </button>
+  <button class="filter-tab" onclick="setFilter(this)">
+    <span class="icon">☀️</span>
+    <span>Natural Light</span>
+  </button>
+  <button class="filter-tab" onclick="setFilter(this)">
+    <span class="icon">👗</span>
+    <span>Fashion</span>
+  </button>
+  <button class="filter-tab" onclick="setFilter(this)">
+    <span class="icon">📦</span>
+    <span>Product</span>
+  </button>
+  <button class="filter-tab" onclick="setFilter(this)">
+    <span class="icon">🎬</span>
+    <span>Film & Video</span>
+  </button>
+</div>
+
+<!-- STUDIO GRID -->
+<section class="studios-section">
+  <div class="section-header">
+    <h2>Studios near you</h2>
+    <a href="#">View all →</a>
+  </div>
+
+  <div class="studio-grid" id="studio-grid">
+
+    <a class="studio-card" href="#" onclick="openStudio(event, 0)">
+      <div class="card-image-placeholder" style="background: linear-gradient(135deg, #1a1a2e 0%, #2d3561 100%);">
+        📷
+        <div class="card-badge">⭐ Top Rated</div>
+        <div class="card-favourite">♡</div>
+      </div>
+      <div class="card-body">
+        <div class="card-location">📍 Shoreditch, London</div>
+        <div class="card-title">The White Box Studio</div>
+        <div class="card-meta">
+          <span>📐 1,200 sq ft</span>
+          <span>👤 Up to 15 people</span>
+          <span>⬜ Infinity Wall</span>
+        </div>
+        <div class="card-footer">
+          <div class="card-price"><strong>£65</strong><span>/ hour</span></div>
+          <div class="card-rating"><span class="star">★</span> 4.97 <span style="color:#bbb">(142 reviews)</span></div>
+        </div>
+      </div>
+    </a>
+
+    <a class="studio-card" href="#" onclick="openStudio(event, 1)">
+      <div class="card-image-placeholder" style="background: linear-gradient(135deg, #2d1b00 0%, #6b4c1e 100%);">
+        🎨
+        <div class="card-badge">✨ New</div>
+        <div class="card-favourite">♡</div>
+      </div>
+      <div class="card-body">
+        <div class="card-location">📍 Dalston, London</div>
+        <div class="card-title">Golden Hour Natural Studio</div>
+        <div class="card-meta">
+          <span>📐 800 sq ft</span>
+          <span>👤 Up to 8 people</span>
+          <span>☀️ Natural Light</span>
+        </div>
+        <div class="card-footer">
+          <div class="card-price"><strong>£45</strong><span>/ hour</span></div>
+          <div class="card-rating"><span class="star">★</span> 4.89 <span style="color:#bbb">(67 reviews)</span></div>
+        </div>
+      </div>
+    </a>
+
+    <a class="studio-card" href="#" onclick="openStudio(event, 2)">
+      <div class="card-image-placeholder" style="background: linear-gradient(135deg, #0d1117 0%, #1a2332 100%);">
+        🎬
+        <div class="card-badge">🎬 Film Ready</div>
+        <div class="card-favourite">♡</div>
+      </div>
+      <div class="card-body">
+        <div class="card-location">📍 Bermondsey, London</div>
+        <div class="card-title">Dark Matter Creative Studio</div>
+        <div class="card-meta">
+          <span>📐 2,000 sq ft</span>
+          <span>👤 Up to 25 people</span>
+          <span>🌑 Dark Studio</span>
+        </div>
+        <div class="card-footer">
+          <div class="card-price"><strong>£120</strong><span>/ hour</span></div>
+          <div class="card-rating"><span class="star">★</span> 4.95 <span style="color:#bbb">(203 reviews)</span></div>
+        </div>
+      </div>
+    </a>
+
+    <a class="studio-card" href="#" onclick="openStudio(event, 3)">
+      <div class="card-image-placeholder" style="background: linear-gradient(135deg, #1a0a2e 0%, #4a1f6e 100%);">
+        👗
+        <div class="card-favourite">♡</div>
+      </div>
+      <div class="card-body">
+        <div class="card-location">📍 Peckham, London</div>
+        <div class="card-title">Studio Noir Fashion Space</div>
+        <div class="card-meta">
+          <span>📐 650 sq ft</span>
+          <span>👤 Up to 10 people</span>
+          <span>👗 Fashion</span>
+        </div>
+        <div class="card-footer">
+          <div class="card-price"><strong>£55</strong><span>/ hour</span></div>
+          <div class="card-rating"><span class="star">★</span> 4.82 <span style="color:#bbb">(88 reviews)</span></div>
+        </div>
+      </div>
+    </a>
+
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+  <span class="section-eyebrow">Simple & Fast</span>
+  <h2>Book a studio in minutes, not days.</h2>
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="how-number">01</div>
+      <h3>Search by location & type</h3>
+      <p>Filter by city, studio type, size, price, and availability. No phone calls. No emails back and forth.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-number">02</div>
+      <h3>Book & pay securely</h3>
+      <p>Choose your dates and hours, pay securely through StudioRack. Your booking is confirmed instantly.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-number">03</div>
+      <h3>Show up & create</h3>
+      <p>Walk in ready to work. Everything is set up as described. Focus on the shoot, not the logistics.</p>
+    </div>
+  </div>
+</section>
+
+<!-- LIST YOUR STUDIO CTA -->
+<section class="cta-section" id="list-section">
+  <div class="cta-content">
+    <h2>Own a studio? Start earning today.</h2>
+    <p>List your photography studio on StudioRack and connect with thousands of photographers, videographers and creatives across the UK actively searching for their next space.</p>
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+      <a href="#" class="btn-primary" style="padding: 14px 28px; font-size: 15px; border-radius: 12px;" onclick="showListingForm()">List your studio free</a>
+      <a href="#" class="btn-ghost" style="padding: 14px 28px; font-size: 15px; border-radius: 12px;">Learn more</a>
+    </div>
+    <div class="cta-stats">
+      <div class="cta-stat">
+        <strong>Free</strong>
+        <span>to list your space</span>
+      </div>
+      <div class="cta-stat">
+        <strong>10%</strong>
+        <span>platform fee only</span>
+      </div>
+      <div class="cta-stat">
+        <strong>Fast</strong>
+        <span>payouts within 48hrs</span>
+      </div>
+    </div>
+  </div>
+  <div class="cta-image">🏗️</div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-top">
+    <div class="footer-brand">
+      <a href="#" class="logo">Studio<span style="color:var(--accent)">Rack</span></a>
+      <p>The UK's marketplace for photography studio bookings. Find, book, and create.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <ul>
+        <li><a href="#">Browse studios</a></li>
+        <li><a href="#">London studios</a></li>
+        <li><a href="#">Manchester studios</a></li>
+        <li><a href="#">Birmingham studios</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Hosts</h4>
+      <ul>
+        <li><a href="#">List your studio</a></li>
+        <li><a href="#">Host resources</a></li>
+        <li><a href="#">Pricing guide</a></li>
+        <li><a href="#">Host support</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Privacy Policy</a></li>
+        <li><a href="#">Terms of Service</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 StudioRack Ltd. All rights reserved.</p>
+    <p>Built for creatives, by creatives.</p>
+  </div>
+</footer>
+
+<!-- STUDIO DETAIL MODAL -->
+<div class="modal-overlay" id="studio-modal">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeModal('studio-modal')">✕</button>
+    <div class="modal-images">
+      <div class="modal-main-image" id="modal-main-img">📷</div>
+      <div class="modal-side-images">
+        <div class="modal-side-image">🎨</div>
+        <div class="modal-side-image">💡</div>
+      </div>
+    </div>
+    <div class="modal-content">
+      <div class="modal-info">
+        <h2 id="modal-title">The White Box Studio</h2>
+        <div class="location" id="modal-location">📍 Shoreditch, London</div>
+        <div class="modal-tags" id="modal-tags">
+          <span class="tag">⬜ Infinity Wall</span>
+          <span class="tag">📐 1,200 sq ft</span>
+          <span class="tag">👤 Up to 15 people</span>
+          <span class="tag">🅿️ Parking available</span>
+        </div>
+        <p class="modal-description" id="modal-desc">A stunning all-white cyclorama studio in the heart of Shoreditch. Perfect for fashion, portrait, and product photography. Features a seamless white curved wall, professional lighting rigs, and a fully equipped changing room.</p>
+        <div class="modal-amenities">
+          <h3>What's included</h3>
+          <div class="amenity-grid">
+            <div class="amenity"><span class="icon">💡</span> Studio lighting</div>
+            <div class="amenity"><span class="icon">🔌</span> Power outlets</div>
+            <div class="amenity"><span class="icon">🚿</span> Changing room</div>
+            <div class="amenity"><span class="icon">☕</span> Kitchen access</div>
+            <div class="amenity"><span class="icon">📶</span> High-speed WiFi</div>
+            <div class="amenity"><span class="icon">🅿️</span> Free parking</div>
+            <div class="amenity"><span class="icon">🎨</span> Backdrop options</div>
+            <div class="amenity"><span class="icon">📦</span> Equipment storage</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="booking-card">
+        <div class="booking-price"><strong id="modal-price">£65</strong> <span>/ hour</span></div>
+        <div class="booking-rating">★ 4.97 · 142 reviews</div>
+
+        <div class="booking-dates">
+          <div class="date-row">
+            <div class="date-field">
+              <label>Date</label>
+              <input type="date" id="book-date">
+            </div>
+            <div class="date-field">
+              <label>Duration</label>
+              <select id="book-hours" onchange="updatePrice()">
+                <option value="1">1 hour</option>
+                <option value="2">2 hours</option>
+                <option value="3">3 hours</option>
+                <option value="4">4 hours</option>
+                <option value="6">6 hours</option>
+                <option value="8">Full day (8hrs)</option>
+              </select>
+            </div>
+          </div>
+          <div class="time-field">
+            <label>Start time</label>
+            <select id="book-time">
+              <option>8:00 AM</option>
+              <option>9:00 AM</option>
+              <option>10:00 AM</option>
+              <option>11:00 AM</option>
+              <option>12:00 PM</option>
+              <option>1:00 PM</option>
+              <option>2:00 PM</option>
+              <option>3:00 PM</option>
+              <option>4:00 PM</option>
+              <option>5:00 PM</option>
+              <option>6:00 PM</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn-book" onclick="openPayment()">Reserve now</button>
+
+        <div class="booking-breakdown">
+          <div class="breakdown-row">
+            <span id="price-breakdown-label">£65 × 1 hour</span>
+            <span id="price-breakdown-sub">£65</span>
+          </div>
+          <div class="breakdown-row">
+            <span>Service fee</span>
+            <span id="service-fee">£7</span>
+          </div>
+          <div class="breakdown-row total">
+            <span>Total</span>
+            <span id="total-price">£72</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT MODAL -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="payment-modal">
+    <button class="modal-close" style="position:relative;top:0;right:0;float:right;margin-bottom:16px;" onclick="closeModal('payment-modal')">✕</button>
+    <h2>Confirm your booking</h2>
+    <p>Secure payment powered by Stripe. Your card details are never stored.</p>
+
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" placeholder="Your full name">
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" placeholder="your@email.com">
+    </div>
+    <div class="form-group">
+      <label>Card Number</label>
+      <input type="text" placeholder="1234 5678 9012 3456" maxlength="19" oninput="formatCard(this)">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Expiry</label>
+        <input type="text" placeholder="MM / YY" maxlength="7">
+      </div>
+      <div class="form-group">
+        <label>CVC</label>
+        <input type="text" placeholder="123" maxlength="3">
+      </div>
+    </div>
+
+    <button class="btn-book" onclick="confirmBooking()" id="pay-btn">Pay £72</button>
+
+    <div class="stripe-badge">
+      <span class="stripe-lock">🔒</span>
+      Secured by Stripe — 256-bit SSL encryption
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS MODAL -->
+<div class="modal-overlay" id="success-modal">
+  <div class="payment-modal" style="text-align:center;">
+    <div style="font-size:64px;margin-bottom:20px;">🎉</div>
+    <h2>Booking Confirmed!</h2>
+    <p style="margin-bottom:24px;">Your studio is booked. A confirmation has been sent to your email with all the details.</p>
+    <button class="btn-book" onclick="closeModal('success-modal')">Done</button>
+  </div>
+</div>
+
+<!-- LIST YOUR STUDIO FORM MODAL -->
+<div class="modal-overlay" id="listing-modal">
+  <div class="payment-modal" style="max-width:600px;max-height:90vh;overflow-y:auto;">
+    <button class="modal-close" style="position:relative;top:0;right:0;float:right;" onclick="closeModal('listing-modal')">✕</button>
+    <h2>List your studio</h2>
+    <p>Fill in your studio details. We'll review and have you live within 24 hours.</p>
+    <div class="form-group">
+      <label>Studio Name *</label>
+      <input type="text" id="list-name" placeholder="e.g. The White Box Studio">
+    </div>
+    <div class="form-group">
+      <label>Full Address *</label>
+      <input type="text" id="list-location" placeholder="123 Studio Street, London E1 6RF">
+    </div>
+    <div class="form-group">
+      <label>City *</label>
+      <input type="text" id="list-city" placeholder="e.g. London">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Size (sq ft) *</label>
+        <input type="number" id="list-size" placeholder="e.g. 800">
+      </div>
+      <div class="form-group">
+        <label>Price per hour (£) *</label>
+        <input type="number" id="list-price" placeholder="e.g. 50">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Studio Type *</label>
+        <select id="list-type" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
+          <option value="">Select type</option>
+          <option>Infinity Wall</option>
+          <option>Natural Light</option>
+          <option>Fashion</option>
+          <option>Product</option>
+          <option>Film & Video</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Max People</label>
+        <input type="number" id="list-people" placeholder="e.g. 10">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="list-desc" placeholder="Describe your studio — lighting, equipment, vibe..." style="width:100%;border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;height:100px;resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Studio Photos</label>
+      <input type="file" id="list-photos" multiple accept="image/*" onchange="handlePhotoUpload(this)" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;font-size:13px;">
+      <p id="upload-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;"></p>
+    </div>
+    <p id="listing-msg" style="font-size:13px;color:var(--accent);margin-bottom:12px;"></p>
+    <button class="btn-book" onclick="submitListing()">Submit for review</button>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="payment-modal">
+    <button class="modal-close" style="position:relative;top:0;right:0;float:right;" onclick="closeModal('auth-modal')">✕</button>
+    <h2>Welcome to StudioRack</h2>
+    <p>Sign in or create an account to book studios or list your space.</p>
+    <div class="form-group">
+      <label>I am a</label>
+      <select id="auth-role" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;">
+        <option value="photographer">Photographer / Videographer</option>
+        <option value="studio_owner">Studio Owner</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="auth-email" placeholder="your@email.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="auth-pass" placeholder="Min 6 characters">
+    </div>
+    <p id="auth-msg" style="font-size:13px;color:var(--accent);margin-bottom:12px;"></p>
+    <div style="display:flex;gap:12px;">
+      <button class="btn-book" style="flex:1;" onclick="handleSignIn()">Sign In</button>
+      <button class="btn-book" style="flex:1;background:#444;" onclick="handleSignUp()">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ── Supabase config ──────────────────────────────────────────────
+  const SUPABASE_URL  = 'https://kkkowrtjunorlqmygory.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtra293cnRqdW5vcmxxbXlnb3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTk5NDgsImV4cCI6MjA5NjEzNTk0OH0.fnhfa4NDceaTxIZVNbwTR1rPO9Jj0-DlIgVE2FDeG1M';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  // ── State ────────────────────────────────────────────────────────
+  let currentUser     = null;
+  let currentStudio   = null;
+  let currentStudioPrice = 65;
+  let allStudios      = [];
+  let uploadedPhotoUrls = [];
+
+  // ── Boot ─────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('search-date') && (document.getElementById('search-date').value = today);
+    document.getElementById('book-date')   && (document.getElementById('book-date').value   = today);
+
+    // Watch auth state
+    sb.auth.onAuthStateChange((_event, session) => {
+      currentUser = session?.user ?? null;
+      updateNavForUser();
+    });
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) { closeModal(overlay.id); }
+      });
+    });
+
+    await loadStudios();
+  });
+
+  // ── Auth UI ──────────────────────────────────────────────────────
+  function updateNavForUser() {
+    const btn = document.getElementById('auth-btn');
+    if (!btn) return;
+    if (currentUser) {
+      btn.textContent = 'My Account';
+      btn.onclick = showAccountModal;
+    } else {
+      btn.textContent = 'Sign in';
+      btn.onclick = showAuthModal;
+    }
+  }
+
+  function showAuthModal() {
+    document.getElementById('auth-modal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function showAccountModal() {
+    alert(`Signed in as ${currentUser.email}\n\nAccount dashboard coming soon!`);
+  }
+
+  async function handleSignUp() {
+    const email = document.getElementById('auth-email').value.trim();
+    const pass  = document.getElementById('auth-pass').value;
+    const role  = document.getElementById('auth-role').value;
+    const msg   = document.getElementById('auth-msg');
+    if (!email || !pass) { msg.textContent = 'Please fill in all fields.'; return; }
+    msg.textContent = 'Creating account…';
+    const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { role } } });
+    if (error) { msg.textContent = error.message; return; }
+    msg.textContent = '✅ Check your email to confirm your account!';
+  }
+
+  async function handleSignIn() {
+    const email = document.getElementById('auth-email').value.trim();
+    const pass  = document.getElementById('auth-pass').value;
+    const msg   = document.getElementById('auth-msg');
+    if (!email || !pass) { msg.textContent = 'Please fill in all fields.'; return; }
+    msg.textContent = 'Signing in…';
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) { msg.textContent = error.message; return; }
+    closeModal('auth-modal');
+  }
+
+  async function handleSignOut() {
+    await sb.auth.signOut();
+    currentUser = null;
+    updateNavForUser();
+  }
+
+  // ── Load studios from Supabase ───────────────────────────────────
+  async function loadStudios(filter = '') {
+    const grid = document.getElementById('studio-grid');
+    grid.innerHTML = '<p style="color:var(--text-muted);padding:24px;">Loading studios…</p>';
+
+    let query = sb.from('studios').select('*').eq('is_approved', true);
+    if (filter && filter !== 'All Studios') {
+      query = query.eq('studio_type', filter);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(error);
+      grid.innerHTML = renderDemoStudios();
+      bindDemoCards();
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      grid.innerHTML = renderDemoStudios();
+      bindDemoCards();
+      return;
+    }
+
+    allStudios = data;
+    grid.innerHTML = data.map((s, i) => renderStudioCard(s, i)).join('');
+    grid.querySelectorAll('.studio-card').forEach((card, i) => {
+      card.addEventListener('click', e => { e.preventDefault(); openStudio(data[i]); });
+    });
+  }
+
+  function renderStudioCard(s, i) {
+    const photo = s.photos ? s.photos.split(',')[0] : '';
+    const imgHtml = photo
+      ? `<img src="${photo}" style="width:100%;height:320px;object-fit:cover;display:block;" onerror="this.parentElement.innerHTML='<div class=card-image-placeholder style=height:320px>📷</div>'">`
+      : `<div class="card-image-placeholder" style="height:320px;background:linear-gradient(135deg,#1a1a2e,#2d3561)">📷</div>`;
+    return `
+      <a class="studio-card" href="#" style="animation-delay:${i*0.1}s">
+        <div style="position:relative">${imgHtml}
+          <div class="card-favourite">♡</div>
+        </div>
+        <div class="card-body">
+          <div class="card-location">📍 ${s.city || s.location}</div>
+          <div class="card-title">${s.name}</div>
+          <div class="card-meta">
+            <span>📐 ${s.size_sqft} sq ft</span>
+            <span>👤 Up to ${s.max_people}</span>
+            <span>${s.studio_type}</span>
+          </div>
+          <div class="card-footer">
+            <div class="card-price"><strong>£${s.price_per_hour}</strong><span>/ hour</span></div>
+            <div class="card-rating"><span class="star">★</span> New</div>
+          </div>
+        </div>
+      </a>`;
+  }
+
+  // Demo cards shown when database is empty
+  const demoStudios = [
+    { id:'demo1', name:'The White Box Studio', location:'Shoreditch, London', city:'London', price_per_hour:65, size_sqft:1200, max_people:15, studio_type:'Infinity Wall', description:'A stunning all-white infinity wall studio in the heart of Shoreditch. The seamless curved wall creates a clean endless background — perfect for fashion, portrait and product photography.', photos:'', amenities:'💡 Studio lighting,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,🅿️ Parking,🎨 Backdrops,📦 Storage' },
+    { id:'demo2', name:'Golden Hour Natural Studio', location:'Dalston, London', city:'London', price_per_hour:45, size_sqft:800, max_people:8, studio_type:'Natural Light', description:'Beautiful natural light studio flooded with north-facing daylight. Ideal for editorial, beauty and lifestyle shoots. Features exposed brick, wooden floors and large skylights.', photos:'', amenities:'☀️ Natural light,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,🌿 Rooftop access' },
+    { id:'demo3', name:'Dark Matter Creative Studio', location:'Bermondsey, London', city:'London', price_per_hour:120, size_sqft:2000, max_people:25, studio_type:'Film & Video', description:'A dramatic creative space ideal for dramatic lighting, film and commercial video production. Includes a full rigging system, 3-phase power and a dedicated equipment room.', photos:'', amenities:'🎬 Rigging system,🔌 3-phase power,🚿 Changing room,☕ Kitchen,📶 WiFi,🅿️ Parking' },
+    { id:'demo4', name:'Studio Noir Fashion Space', location:'Peckham, London', city:'London', price_per_hour:55, size_sqft:650, max_people:10, studio_type:'Fashion', description:'A chic intimate fashion studio with a moodboard wall, full-length mirrors and a dedicated styling area. Perfect for lookbooks, e-commerce and editorial fashion work.', photos:'', amenities:'👗 Styling room,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,👠 Wardrobe rail' }
+  ];
+
+  function renderDemoStudios() {
+    const emojis = ['📷','🎨','🎬','👗'];
+    const gradients = ['linear-gradient(135deg,#1a1a2e,#2d3561)','linear-gradient(135deg,#2d1b00,#6b4c1e)','linear-gradient(135deg,#0d1117,#1a2332)','linear-gradient(135deg,#1a0a2e,#4a1f6e)'];
+    return demoStudios.map((s,i) => `
+      <a class="studio-card demo-card" href="#" data-idx="${i}" style="animation-delay:${i*0.1}s">
+        <div style="position:relative">
+          <div class="card-image-placeholder" style="height:320px;background:${gradients[i]}">${emojis[i]}
+            <div class="card-favourite">♡</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-location">📍 ${s.city}</div>
+          <div class="card-title">${s.name}</div>
+          <div class="card-meta">
+            <span>📐 ${s.size_sqft} sq ft</span>
+            <span>👤 Up to ${s.max_people}</span>
+            <span>${s.studio_type}</span>
+          </div>
+          <div class="card-footer">
+            <div class="card-price"><strong>£${s.price_per_hour}</strong><span>/ hour</span></div>
+            <div class="card-rating"><span class="star">★</span> 4.9+</div>
+          </div>
+        </div>
+      </a>`).join('');
+  }
+
+  function bindDemoCards() {
+    document.querySelectorAll('.demo-card').forEach(card => {
+      card.addEventListener('click', e => {
+        e.preventDefault();
+        openStudio(demoStudios[+card.dataset.idx]);
+      });
+    });
+  }
+
+  // ── Studio detail modal ──────────────────────────────────────────
+  function openStudio(s) {
+    currentStudio = s;
+    currentStudioPrice = s.price_per_hour;
+    document.getElementById('modal-title').textContent    = s.name;
+    document.getElementById('modal-location').textContent = '📍 ' + (s.city || s.location);
+    document.getElementById('modal-price').textContent    = '£' + s.price_per_hour;
+    document.getElementById('modal-desc').textContent     = s.description || '';
+
+    // Photos
+    const mainImg = document.getElementById('modal-main-img');
+    const photos  = s.photos ? s.photos.split(',').filter(Boolean) : [];
+    if (photos.length > 0) {
+      mainImg.innerHTML = `<img src="${photos[0]}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+      mainImg.textContent = '📷';
+    }
+
+    // Tags
+    const tags = [s.studio_type, `📐 ${s.size_sqft} sq ft`, `👤 Up to ${s.max_people}`].filter(Boolean);
+    document.getElementById('modal-tags').innerHTML = tags.map(t => `<span class="tag">${t}</span>`).join('');
+
+    // Amenities
+    const amenGrid = document.querySelector('.amenity-grid');
+    if (s.amenities) {
+      amenGrid.innerHTML = s.amenities.split(',').map(a => `<div class="amenity"><span class="icon">${a.trim().split(' ')[0]}</span> ${a.trim().split(' ').slice(1).join(' ')}</div>`).join('');
+    }
+
+    updatePrice();
+    document.getElementById('studio-modal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  // ── Booking + price ──────────────────────────────────────────────
+  function updatePrice() {
+    const hours = parseInt(document.getElementById('book-hours').value);
+    const price = currentStudioPrice;
+    const sub   = price * hours;
+    const fee   = Math.round(sub * 0.1);
+    const total = sub + fee;
+    const label = hours === 8 ? `£${price} × full day` : `£${price} × ${hours} hour${hours>1?'s':''}`;
+    document.getElementById('price-breakdown-label').textContent = label;
+    document.getElementById('price-breakdown-sub').textContent   = '£' + sub;
+    document.getElementById('service-fee').textContent           = '£' + fee;
+    document.getElementById('total-price').textContent           = '£' + total;
+    document.getElementById('pay-btn').textContent               = 'Pay £' + total;
+  }
+
+  function openPayment() {
+    if (!currentUser) {
+      closeModal('studio-modal');
+      showAuthModal();
+      return;
+    }
+    document.getElementById('studio-modal').classList.remove('active');
+    document.getElementById('payment-modal').classList.add('active');
+  }
+
+  async function confirmBooking() {
+    if (!currentUser || !currentStudio) return;
+    const hours    = parseInt(document.getElementById('book-hours').value);
+    const date     = document.getElementById('book-date').value;
+    const time     = document.getElementById('book-time').value;
+    const subtotal = currentStudioPrice * hours;
+    const fee      = Math.round(subtotal * 0.1);
+    const total    = subtotal + fee;
+
+    const { error } = await sb.from('bookings').insert({
+      studio_id:        currentStudio.id || null,
+      photographer_id:  currentUser.id,
+      booking_date:     date,
+      start_time:       time,
+      hours,
+      total_price:      total,
+      status:           'confirmed',
+      payment_status:   'paid',
+      stripe_payment_id:'demo_' + Date.now()
+    });
+
+    if (error) console.error('Booking error:', error);
+    document.getElementById('payment-modal').classList.remove('active');
+    document.getElementById('success-modal').classList.add('active');
+  }
+
+  // ── List your studio ─────────────────────────────────────────────
+  function showListingForm() {
+    if (!currentUser) { showAuthModal(); return; }
+    uploadedPhotoUrls = [];
+    document.getElementById('listing-modal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  async function handlePhotoUpload(input) {
+    const files = Array.from(input.files);
+    const statusEl = document.getElementById('upload-status');
+    statusEl.textContent = `Uploading ${files.length} photo(s)…`;
+    uploadedPhotoUrls = [];
+
+    for (const file of files) {
+      const ext  = file.name.split('.').pop();
+      const path = `${currentUser.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await sb.storage.from('studio-photos').upload(path, file, { upsert: true });
+      if (!error) {
+        const { data: { publicUrl } } = sb.storage.from('studio-photos').getPublicUrl(path);
+        uploadedPhotoUrls.push(publicUrl);
+      }
+    }
+    statusEl.textContent = `✅ ${uploadedPhotoUrls.length} photo(s) uploaded successfully`;
+  }
+
+  async function submitListing() {
+    const name     = document.getElementById('list-name').value.trim();
+    const location = document.getElementById('list-location').value.trim();
+    const city     = document.getElementById('list-city').value.trim();
+    const size     = parseInt(document.getElementById('list-size').value);
+    const price    = parseInt(document.getElementById('list-price').value);
+    const type     = document.getElementById('list-type').value;
+    const people   = parseInt(document.getElementById('list-people').value);
+    const desc     = document.getElementById('list-desc').value.trim();
+    const msgEl    = document.getElementById('listing-msg');
+
+    if (!name || !location || !city || !size || !price || !type) {
+      msgEl.textContent = 'Please fill in all required fields.';
+      return;
+    }
+
+    msgEl.textContent = 'Submitting…';
+    const { error } = await sb.from('studios').insert({
+      owner_id:      currentUser.id,
+      name,
+      location,
+      city,
+      size_sqft:     size,
+      price_per_hour:price,
+      studio_type:   type,
+      max_people:    people || 10,
+      description:   desc,
+      photos:        uploadedPhotoUrls.join(','),
+      is_approved:   false
+    });
+
+    if (error) { msgEl.textContent = 'Error: ' + error.message; return; }
+    msgEl.textContent = '✅ Submitted! We\'ll review your studio within 24 hours.';
+    setTimeout(() => closeModal('listing-modal'), 2500);
+  }
+
+  // ── Filter tabs ──────────────────────────────────────────────────
+  function setFilter(el) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    loadStudios(el.querySelector('span:last-child').textContent);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function scrollToStudios() {
+    document.getElementById('browse-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function showSection(s) {
+    if (s === 'list') document.getElementById('list-section').scrollIntoView({ behavior: 'smooth' });
+    else document.getElementById('browse-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function formatCard(input) {
+    let v = input.value.replace(/\D/g,'').substring(0,16);
+    input.value = v.replace(/(.{4})/g,'$1 ').trim();
+  }
+</script>
+</body>
+</html>
