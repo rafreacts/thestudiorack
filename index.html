@@ -1895,18 +1895,12 @@
 
       // 4. Send confirmation emails (don't block the success screen if this fails)
       try {
-        // Look up the studio owner's email if we have a real studio
-        let hostEmail = null;
-        if (currentStudio.owner_id) {
-          // owner email isn't directly queryable from anon; the server handles host lookup separately
-          hostEmail = currentStudio.owner_email || null;
-        }
         fetch(PAYMENT_SERVER + '/send-booking-emails', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             photographerEmail: currentUser.email,
-            hostEmail: hostEmail,
+            studioId: currentStudio.id || null,
             studioName: currentStudio.name,
             bookingDate: date,
             startTime: time,
