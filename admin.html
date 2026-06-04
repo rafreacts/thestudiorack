@@ -646,6 +646,7 @@
       <input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')adminLogin()">
     </div>
     <button class="btn-primary" onclick="adminLogin()">Sign in to Admin</button>
+    <p style="text-align:center;margin-top:14px;"><a href="#" onclick="adminForgotPassword();return false;" style="font-size:12px;color:var(--text-muted);text-decoration:underline;">Forgot your password?</a></p>
     <p class="error-msg" id="login-error"></p>
   </div>
 </div>
@@ -841,6 +842,18 @@
     await sb.auth.signOut();
     document.getElementById('admin-layout').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  async function adminForgotPassword() {
+    const email = document.getElementById('login-email').value.trim();
+    const err   = document.getElementById('login-error');
+    if (!email) { err.textContent = 'Enter your email above first, then tap "Forgot password".'; return; }
+    err.textContent = 'Sending reset link…';
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://thestudiorack.com/reset.html'
+    });
+    if (error) { err.textContent = error.message; return; }
+    err.textContent = '✅ Check your email for a reset link.';
   }
 
   function showAdmin() {
