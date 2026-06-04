@@ -2,9 +2,16 @@ const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const cors = require('cors');
 const { Resend } = require('resend');
+const { createClient } = require('@supabase/supabase-js');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = 'StudioRack <bookings@thestudiorack.com>';
+
+// Admin Supabase client — can look up owner emails securely
+const sbAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 const app = express();
 app.use(cors({ origin: 'https://thestudiorack.com' }));
@@ -53,10 +60,11 @@ function hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, tota
 // ── Send booking emails ──
 app.post('/send-booking-emails', async (req, res) => {
   try {
-    const { photographerEmail, hostEmail, studioName, bookingDate, startTime, hours, total } = req.body;
+    const { photographerEmail, studioId, studioName, bookingDate, startTime, hours, total } = req.body;
     const ownerPayout = Math.round((total || 0) * 0.9);
     const results = {};
 
+    // Confirmation to photographer
     if (photographerEmail) {
       const r = await resend.emails.send({
         from: FROM,
@@ -67,14 +75,35 @@ app.post('/send-booking-emails', async (req, res) => {
       results.photographer = r.error ? r.error.message : 'sent';
     }
 
-    if (hostEmail) {
-      const r = await resend.emails.send({
-        from: FROM,
-        to: hostEmail,
-        subject: `New booking for ${studioName}`,
-        html: hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, total, ownerPayout })
-      });
-      results.host = r.error ? r.error.message : 'sent';
+    // Look up the studio owner's email securely, then alert them
+    if (studioId) {
+      try {
+        // Get the owner_id from the studio
+        const { data: studio } = await sbAdmin
+          .from('studios')
+          .select('owner_id')
+          .eq('id', studioId)
+          .single();
+
+        if (studio && studio.owner_id) {
+          // Get the owner's email from the auth users table
+          const { data: userData } = await sbAdmin.auth.admin.getUserById(studio.owner_id);
+          const hostEmail = userData?.user?.email;
+
+          if (hostEmail) {
+            const r = await resend.emails.send({
+              from: FROM,
+              to: hostEmail,
+              subject: `New booking for ${studioName}`,
+              html: hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, total, ownerPayout })
+            });
+            results.host = r.error ? r.error.message : 'sent';
+          }
+        }
+      } catch (lookupErr) {
+        console.error('Host lookup error:', lookupErr);
+        results.host = 'lookup failed';
+      }
     }
 
     res.json({ success: true, results });
