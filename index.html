@@ -1418,18 +1418,9 @@
       <input type="email" placeholder="your@email.com">
     </div>
     <div class="form-group">
-      <label>Card Number</label>
-      <input type="text" placeholder="1234 5678 9012 3456" maxlength="19" oninput="formatCard(this)">
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Expiry</label>
-        <input type="text" placeholder="MM / YY" maxlength="7">
-      </div>
-      <div class="form-group">
-        <label>CVC</label>
-        <input type="text" placeholder="123" maxlength="3">
-      </div>
+      <label>Card Details</label>
+      <div id="stripe-card-element" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:white;"></div>
+      <p id="stripe-error" style="color:#e53e3e;font-size:12px;margin-top:8px;"></p>
     </div>
 
     <button class="btn-book" onclick="confirmBooking()" id="pay-btn">Pay £72</button>
@@ -1540,11 +1531,18 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://js.stripe.com/v3/"></script>
 <script>
   // ── Supabase config ──────────────────────────────────────────────
   const SUPABASE_URL  = 'https://kkkowrtjunorlqmygory.supabase.co';
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtra293cnRqdW5vcmxxbXlnb3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTk5NDgsImV4cCI6MjA5NjEzNTk0OH0.fnhfa4NDceaTxIZVNbwTR1rPO9Jj0-DlIgVE2FDeG1M';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  // ── Stripe config ────────────────────────────────────────────────
+  const STRIPE_PK      = 'pk_live_51TbRfSLVwXApC0KTujOLQKRgZGCVafPJtV9Te3k7652xWXOb6Kqzw0jffxvHG8gbqWCzZJ5CMd56rd25F450I7V200zB3DA0DG';
+  const PAYMENT_SERVER = 'https://friendly-joy-production-6ab1.up.railway.app';
+  const stripeClient   = Stripe(STRIPE_PK);
+  let stripeCard       = null;
 
   // ── State ────────────────────────────────────────────────────────
   let currentUser     = null;
@@ -1783,6 +1781,19 @@
     }
     document.getElementById('studio-modal').classList.remove('active');
     document.getElementById('payment-modal').classList.add('active');
+
+    // Mount Stripe card element
+    setTimeout(() => {
+      if (!stripeCard) {
+        const elements = stripeClient.elements();
+        stripeCard = elements.create('card', {
+          style: {
+            base: { fontFamily: 'DM Sans, sans-serif', fontSize: '14px', color: '#1a1a1a' }
+          }
+        });
+        stripeCard.mount('#stripe-card-element');
+      }
+    }, 100);
   }
 
   async function confirmBooking() {
@@ -1793,22 +1804,56 @@
     const subtotal = currentStudioPrice * hours;
     const fee      = Math.round(subtotal * 0.1);
     const total    = subtotal + fee;
+    const payBtn   = document.getElementById('pay-btn');
+    const errEl    = document.getElementById('stripe-error');
 
-    const { error } = await sb.from('bookings').insert({
-      studio_id:        currentStudio.id || null,
-      photographer_id:  currentUser.id,
-      booking_date:     date,
-      start_time:       time,
-      hours,
-      total_price:      total,
-      status:           'confirmed',
-      payment_status:   'paid',
-      stripe_payment_id:'demo_' + Date.now()
-    });
+    payBtn.textContent = 'Processing…';
+    payBtn.disabled = true;
+    errEl.textContent = '';
 
-    if (error) console.error('Booking error:', error);
-    document.getElementById('payment-modal').classList.remove('active');
-    document.getElementById('success-modal').classList.add('active');
+    try {
+      // 1. Create payment intent on server
+      const res = await fetch(PAYMENT_SERVER + '/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: total,
+          studioName: currentStudio.name,
+          bookingDate: date,
+          hours
+        })
+      });
+      const { clientSecret, error: serverError } = await res.json();
+      if (serverError) throw new Error(serverError);
+
+      // 2. Confirm card payment with Stripe
+      const { paymentIntent, error: stripeError } = await stripeClient.confirmCardPayment(clientSecret, {
+        payment_method: { card: stripeCard }
+      });
+      if (stripeError) throw new Error(stripeError.message);
+
+      // 3. Save booking to Supabase
+      await sb.from('bookings').insert({
+        studio_id:        currentStudio.id || null,
+        photographer_id:  currentUser.id,
+        booking_date:     date,
+        start_time:       time,
+        hours,
+        total_price:      total,
+        status:           'confirmed',
+        payment_status:   'paid',
+        stripe_payment_id: paymentIntent.id
+      });
+
+      document.getElementById('payment-modal').classList.remove('active');
+      document.getElementById('success-modal').classList.add('active');
+      stripeCard = null;
+
+    } catch (err) {
+      errEl.textContent = err.message;
+      payBtn.textContent = 'Pay £' + total;
+      payBtn.disabled = false;
+    }
   }
 
   // ── List your studio ─────────────────────────────────────────────
@@ -1902,3 +1947,4 @@
 </script>
 </body>
 </html>
+
