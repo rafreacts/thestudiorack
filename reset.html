@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reset Password — StudioRack</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0a0a0a; --warm-white: #faf9f7; --off-white: #f7f5f2;
+    --accent: #c8a96e; --text: #1a1a1a; --text-muted: #6b6b6b; --border: #e8e4de;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--warm-white); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: white; border: 1px solid var(--border); border-radius: 20px; padding: 44px; width: 100%; max-width: 400px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+  .logo { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; text-align: center; margin-bottom: 6px; }
+  .logo span { color: var(--accent); }
+  .sub { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 28px; font-weight: 300; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px; }
+  .form-group input { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus { border-color: var(--accent); }
+  .btn { width: 100%; background: var(--black); color: white; border: none; border-radius: 10px; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+  .btn:hover { background: #333; }
+  .msg { font-size: 13px; margin-top: 14px; text-align: center; }
+  .msg.success { color: #16a34a; }
+  .msg.error { color: #dc2626; }
+  .msg.info { color: var(--accent); }
+  .back { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">Studio<span>Rack</span></div>
+  <p class="sub">Set a new password for your account</p>
+
+  <div id="reset-form">
+    <div class="form-group">
+      <label>New Password</label>
+      <input type="password" id="new-pass" placeholder="Min 6 characters">
+    </div>
+    <div class="form-group">
+      <label>Confirm Password</label>
+      <input type="password" id="confirm-pass" placeholder="Re-enter password" onkeydown="if(event.key==='Enter')updatePassword()">
+    </div>
+    <button class="btn" onclick="updatePassword()">Update Password</button>
+  </div>
+
+  <p class="msg info" id="msg">Verifying your reset link…</p>
+  <a href="/" class="back">← Back to StudioRack</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL  = 'https://kkkowrtjunorlqmygory.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtra293cnRqdW5vcmxxbXlnb3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTk5NDgsImV4cCI6MjA5NjEzNTk0OH0.fnhfa4NDceaTxIZVNbwTR1rPO9Jj0-DlIgVE2FDeG1M';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  const msg = document.getElementById('msg');
+
+  // When the user arrives from the email link, Supabase puts a recovery session in the URL
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY' || session) {
+      msg.textContent = 'Enter your new password below.';
+      msg.className = 'msg info';
+    }
+  });
+
+  // Check if we have a valid session shortly after load
+  setTimeout(async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      msg.textContent = 'Enter your new password below.';
+      msg.className = 'msg info';
+    } else {
+      msg.textContent = 'This reset link may have expired. Request a new one from the sign-in screen.';
+      msg.className = 'msg error';
+    }
+  }, 800);
+
+  async function updatePassword() {
+    const pass = document.getElementById('new-pass').value;
+    const confirm = document.getElementById('confirm-pass').value;
+    if (!pass || pass.length < 6) { msg.textContent = 'Password must be at least 6 characters.'; msg.className = 'msg error'; return; }
+    if (pass !== confirm) { msg.textContent = 'Passwords do not match.'; msg.className = 'msg error'; return; }
+
+    msg.textContent = 'Updating…'; msg.className = 'msg info';
+    const { error } = await sb.auth.updateUser({ password: pass });
+    if (error) { msg.textContent = error.message; msg.className = 'msg error'; return; }
+
+    msg.textContent = '✅ Password updated! Redirecting you to sign in…';
+    msg.className = 'msg success';
+    document.getElementById('reset-form').style.display = 'none';
+    setTimeout(() => { window.location.href = '/'; }, 2500);
+  }
+</script>
+</body>
+</html>
