@@ -1,11 +1,10 @@
-[04/06/2026, 15:33:01] Raphael: "start": "npx serve . -p $PORT"
-[04/06/2026, 15:33:55] Raphael: {
+{
   "name": "thestudiorack",
   "version": "1.0.0",
   "scripts": {
-    "start": "npx serve . -p $PORT"
+    "start": "serve -s . -l $PORT"
   },
   "dependencies": {
-    "serve": "^14.0.0"
+    "serve": "^14.2.1"
   }
 }
