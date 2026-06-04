@@ -1067,7 +1067,7 @@
   <div class="search-container">
     <div class="search-field">
       <label>Location</label>
-      <input type="text" placeholder="London, Manchester, Birmingham...">
+      <input type="text" id="search-location" placeholder="London, Manchester, Birmingham..." onkeydown="if(event.key==='Enter')runSearch()">
     </div>
     <div class="search-field">
       <label>Date</label>
@@ -1075,16 +1075,16 @@
     </div>
     <div class="search-field">
       <label>Studio Type</label>
-      <select>
+      <select id="search-type">
         <option value="">Any type</option>
         <option>Infinity Wall</option>
         <option>Natural Light</option>
         <option>Fashion</option>
         <option>Product</option>
-        <option>Film / Video</option>
+        <option>Film &amp; Video</option>
       </select>
     </div>
-    <button class="search-btn" onclick="scrollToStudios()">
+    <button class="search-btn" onclick="runSearch()">
       <svg viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
     </button>
   </div>
@@ -1528,6 +1528,7 @@
       <button class="btn-book" style="flex:1;" onclick="handleSignIn()">Sign In</button>
       <button class="btn-book" style="flex:1;background:#444;" onclick="handleSignUp()">Create Account</button>
     </div>
+    <p style="text-align:center;margin-top:14px;"><a href="#" onclick="handleForgotPassword();return false;" style="font-size:13px;color:var(--text-muted);text-decoration:underline;">Forgot your password?</a></p>
     <p style="font-size:11px;color:var(--text-muted);margin-top:16px;text-align:center;line-height:1.5;">By creating an account you confirm you are 18+ and agree to our <a href="/terms.html" target="_blank" style="color:var(--accent);text-decoration:underline;">Terms & Conditions</a>.</p>
   </div>
 </div>
@@ -1626,28 +1627,44 @@
     updateNavForUser();
   }
 
+  async function handleForgotPassword() {
+    const email = document.getElementById('auth-email').value.trim();
+    const msg   = document.getElementById('auth-msg');
+    if (!email) { msg.textContent = 'Enter your email above first, then tap "Forgot password".'; return; }
+    msg.textContent = 'Sending reset link…';
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://thestudiorack.com/reset.html'
+    });
+    if (error) { msg.textContent = error.message; return; }
+    msg.textContent = '✅ Check your email for a link to reset your password.';
+  }
+
   // ── Load studios from Supabase ───────────────────────────────────
-  async function loadStudios(filter = '') {
+  async function loadStudios(typeFilter = '', locationFilter = '') {
     const grid = document.getElementById('studio-grid');
     grid.innerHTML = '<p style="color:var(--text-muted);padding:24px;">Loading studios…</p>';
 
     let query = sb.from('studios').select('*').eq('is_approved', true);
-    if (filter && filter !== 'All Studios') {
-      query = query.eq('studio_type', filter);
+    if (typeFilter && typeFilter !== 'All Studios') {
+      query = query.eq('studio_type', typeFilter);
+    }
+    if (locationFilter) {
+      query = query.ilike('city', `%${locationFilter}%`);
     }
 
     const { data, error } = await query;
 
-    if (error) {
-      console.error(error);
-      grid.innerHTML = renderDemoStudios();
-      bindDemoCards();
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      grid.innerHTML = renderDemoStudios();
-      bindDemoCards();
+    // If DB errors or is empty, fall back to demo studios (filtered too)
+    if (error || !data || data.length === 0) {
+      let demo = demoStudios.slice();
+      if (typeFilter && typeFilter !== 'All Studios') {
+        demo = demo.filter(s => s.studio_type === typeFilter);
+      }
+      if (locationFilter) {
+        demo = demo.filter(s => (s.city || '').toLowerCase().includes(locationFilter.toLowerCase()) || (s.location || '').toLowerCase().includes(locationFilter.toLowerCase()));
+      }
+      grid.innerHTML = demo.length ? renderDemoStudios(demo) : renderNoResults();
+      bindDemoCards(demo);
       return;
     }
 
@@ -1656,6 +1673,32 @@
     grid.querySelectorAll('.studio-card').forEach((card, i) => {
       card.addEventListener('click', e => { e.preventDefault(); openStudio(data[i]); });
     });
+  }
+
+  // ── Run search from the hero search bar ──────────────────────────
+  function runSearch() {
+    const location = document.getElementById('search-location').value.trim();
+    const type     = document.getElementById('search-type').value;
+    // Sync the filter tabs visually
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.filter-tab').classList.add('active');
+    // Update the section heading
+    const heading = document.querySelector('.studios-section .section-header h2');
+    if (location || type) {
+      heading.textContent = `Studios${type ? ' · ' + type : ''}${location ? ' in ' + location : ''}`;
+    } else {
+      heading.textContent = 'Studios near you';
+    }
+    loadStudios(type, location);
+    document.getElementById('browse-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function renderNoResults() {
+    return `<div style="padding:60px 24px;text-align:center;color:var(--text-muted);">
+      <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+      <p style="font-size:15px;">No studios match your search yet.</p>
+      <p style="font-size:13px;margin-top:6px;">Try a different location or studio type — new studios are added regularly.</p>
+    </div>`;
   }
 
   function renderStudioCard(s, i) {
@@ -1692,13 +1735,15 @@
     { id:'demo4', name:'Studio Noir Fashion Space', location:'Peckham, London', city:'London', price_per_hour:55, size_sqft:650, max_people:10, studio_type:'Fashion', description:'A chic intimate fashion studio with a moodboard wall, full-length mirrors and a dedicated styling area. Perfect for lookbooks, e-commerce and editorial fashion work.', photos:'', amenities:'👗 Styling room,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,👠 Wardrobe rail' }
   ];
 
-  function renderDemoStudios() {
-    const emojis = ['📷','🎨','🎬','👗'];
+  function renderDemoStudios(list = demoStudios) {
+    const emojiMap = { 'Infinity Wall':'📷','Natural Light':'🎨','Film & Video':'🎬','Fashion':'👗','Product':'📦' };
     const gradients = ['linear-gradient(135deg,#1a1a2e,#2d3561)','linear-gradient(135deg,#2d1b00,#6b4c1e)','linear-gradient(135deg,#0d1117,#1a2332)','linear-gradient(135deg,#1a0a2e,#4a1f6e)'];
-    return demoStudios.map((s,i) => `
-      <a class="studio-card demo-card" href="#" data-idx="${i}" style="animation-delay:${i*0.1}s">
+    return list.map((s,i) => {
+      const realIdx = demoStudios.indexOf(s);
+      return `
+      <a class="studio-card demo-card" href="#" data-idx="${realIdx}" style="animation-delay:${i*0.1}s">
         <div style="position:relative">
-          <div class="card-image-placeholder" style="height:320px;background:${gradients[i]}">${emojis[i]}
+          <div class="card-image-placeholder" style="height:320px;background:${gradients[i % gradients.length]}">${emojiMap[s.studio_type] || '📷'}
             <div class="card-favourite">♡</div>
           </div>
         </div>
@@ -1715,10 +1760,11 @@
             <div class="card-rating"><span class="star">★</span> 4.9+</div>
           </div>
         </div>
-      </a>`).join('');
+      </a>`;
+    }).join('');
   }
 
-  function bindDemoCards() {
+  function bindDemoCards(list = demoStudios) {
     document.querySelectorAll('.demo-card').forEach(card => {
       card.addEventListener('click', e => {
         e.preventDefault();
@@ -1924,7 +1970,9 @@
   function setFilter(el) {
     document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
-    loadStudios(el.querySelector('span:last-child').textContent);
+    const type = el.querySelector('span:last-child').textContent;
+    const location = document.getElementById('search-location') ? document.getElementById('search-location').value.trim() : '';
+    loadStudios(type, location);
   }
 
   // ── Helpers ──────────────────────────────────────────────────────
