@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioRack Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #c8a96e;
+    --accent-dim: rgba(200,169,110,0.15);
+    --text: #f0ede8;
+    --text-muted: #6b6b6b;
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.1);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.1);
+    --yellow: #f59e0b;
+    --yellow-dim: rgba(245,158,11,0.1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* LOGIN SCREEN */
+  .login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+  }
+
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+  }
+
+  .login-card .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .login-card .logo span { color: var(--accent); }
+
+  .login-card p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+    text-align: left;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .form-group input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--bg);
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 8px;
+  }
+
+  .btn-primary:hover { opacity: 0.9; }
+
+  .error-msg {
+    font-size: 12px;
+    color: var(--red);
+    margin-top: 12px;
+  }
+
+  /* ADMIN LAYOUT */
+  .admin-layout {
+    display: none;
+    min-height: 100vh;
+  }
+
+  .admin-layout.visible { display: flex; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 240px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 28px 0;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+  }
+
+  .sidebar-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 500;
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .sidebar-logo span { color: var(--accent); }
+  .sidebar-logo small {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 2px solid transparent;
+    text-decoration: none;
+  }
+
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .nav-badge {
+    margin-left: auto;
+    background: var(--red);
+    color: white;
+    border-radius: 100px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .user-email {
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-signout {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-signout:hover { border-color: var(--red); color: var(--red); }
+
+  /* MAIN CONTENT */
+  .main-content {
+    margin-left: 240px;
+    flex: 1;
+    padding: 36px 40px;
+  }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .page-header {
+    margin-bottom: 32px;
+  }
+
+  .page-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .page-header p {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 36px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .stat-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 500;
+    letter-spacing: -1px;
+    color: var(--text);
+  }
+
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.green  { color: var(--green); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 300;
+  }
+
+  /* TABLE */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+
+  .table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .table-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .table-header p {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    padding: 12px 24px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  td {
+    padding: 16px 24px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  .studio-name {
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .studio-location {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-pending  { background: var(--yellow-dim); color: var(--yellow); }
+  .badge-approved { background: var(--green-dim);  color: var(--green); }
+  .badge-rejected { background: var(--red-dim);    color: var(--red); }
+  .badge-paid     { background: var(--green-dim);  color: var(--green); }
+  .badge-pending-pay { background: var(--yellow-dim); color: var(--yellow); }
+
+  /* ACTION BUTTONS */
+  .action-btns {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-approve {
+    background: var(--green-dim);
+    border: 1px solid var(--green);
+    color: var(--green);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-approve:hover { background: var(--green); color: white; }
+
+  .btn-reject {
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    color: var(--red);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-reject:hover { background: var(--red); color: white; }
+
+  .btn-payout {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-payout:hover { background: var(--accent); color: var(--bg); }
+
+  .btn-view {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-view:hover { border-color: var(--text); color: var(--text); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 13px; font-weight: 300; }
+
+  /* STUDIO DETAIL PANEL */
+  .detail-panel {
+    display: none;
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 480px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 200;
+    overflow-y: auto;
+    padding: 32px;
+    animation: slideIn 0.3s ease;
+  }
+
+  .detail-panel.open { display: block; }
+
+  @keyframes slideIn {
+    from { transform: translateX(40px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+
+  .panel-close {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    margin-bottom: 24px;
+    transition: all 0.2s;
+  }
+
+  .panel-close:hover { color: var(--text); }
+
+  .panel-photo {
+    width: 100%;
+    height: 220px;
+    background: var(--surface2);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    overflow: hidden;
+  }
+
+  .panel-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .panel-location {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .panel-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .panel-detail {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .panel-detail label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .panel-detail span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .panel-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    font-weight: 300;
+    margin-bottom: 24px;
+  }
+
+  .terms-box {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 12px;
+    color: var(--accent);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+
+  .panel-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .panel-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1000;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    max-width: 320px;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: var(--red);   color: var(--red); }
+
+  .loading {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 300;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="logo">Studio<span>Rack</span></div>
+    <p>Admin Panel — Authorised access only</p>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="admin@thestudiorack.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')adminLogin()">
+    </div>
+    <button class="btn-primary" onclick="adminLogin()">Sign in to Admin</button>
+    <p class="error-msg" id="login-error"></p>
+  </div>
+</div>
+
+<!-- ADMIN LAYOUT -->
+<div class="admin-layout" id="admin-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      Studio<span>Rack</span>
+      <small>Admin Panel</small>
+    </div>
+
+    <nav>
+      <a class="nav-item active" onclick="showPage('dashboard')">
+        <span class="icon">📊</span> Dashboard
+      </a>
+      <a class="nav-item" onclick="showPage('pending')" id="nav-pending">
+        <span class="icon">⏳</span> Pending Studios
+        <span class="nav-badge" id="pending-badge" style="display:none">0</span>
+      </a>
+      <a class="nav-item" onclick="showPage('studios')">
+        <span class="icon">📷</span> All Studios
+      </a>
+      <a class="nav-item" onclick="showPage('bookings')">
+        <span class="icon">📅</span> Bookings
+      </a>
+      <a class="nav-item" onclick="showPage('payouts')">
+        <span class="icon">💷</span> Payouts
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="user-info">
+        <div class="user-avatar">👤</div>
+        <div class="user-email" id="admin-email">admin</div>
+      </div>
+      <button class="btn-signout" onclick="adminSignOut()">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>Welcome back. Here's what's happening on StudioRack.</p>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Pending Approval</div>
+          <div class="stat-value accent" id="stat-pending">—</div>
+          <div class="stat-sub">studios awaiting review</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Live Studios</div>
+          <div class="stat-value green" id="stat-approved">—</div>
+          <div class="stat-sub">approved & live</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Bookings</div>
+          <div class="stat-value" id="stat-bookings">—</div>
+          <div class="stat-sub">all time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Revenue</div>
+          <div class="stat-value accent" id="stat-revenue">—</div>
+          <div class="stat-sub">total processed</div>
+        </div>
+      </div>
+
+      <!-- Recent pending -->
+      <div class="table-card">
+        <div class="table-header">
+          <div>
+            <h2>Studios Awaiting Approval</h2>
+            <p>Review and approve new studio listings</p>
+          </div>
+        </div>
+        <div id="dashboard-pending-list"><div class="loading">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- PENDING STUDIOS -->
+    <div class="page" id="page-pending">
+      <div class="page-header">
+        <h1>Pending Studios</h1>
+        <p>Review each studio before it goes live on thestudiorack.com</p>
+      </div>
+      <div class="table-card">
+        <div id="pending-list"><div class="loading">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ALL STUDIOS -->
+    <div class="page" id="page-studios">
+      <div class="page-header">
+        <h1>All Studios</h1>
+        <p>Every studio listed on StudioRack</p>
+      </div>
+      <div class="table-card">
+        <div id="all-studios-list"><div class="loading">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS -->
+    <div class="page" id="page-bookings">
+      <div class="page-header">
+        <h1>Bookings</h1>
+        <p>All studio bookings across the platform</p>
+      </div>
+      <div class="table-card">
+        <div id="bookings-list"><div class="loading">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- PAYOUTS -->
+    <div class="page" id="page-payouts">
+      <div class="page-header">
+        <h1>Payouts</h1>
+        <p>Studio owners are paid within 48 hours of the rental date. Mark payouts as complete below.</p>
+      </div>
+      <div class="table-card" style="margin-bottom:20px;background:rgba(200,169,110,0.05);border-color:rgba(200,169,110,0.3);">
+        <div style="padding:16px 24px;font-size:12px;color:var(--accent);line-height:1.6;">
+          💷 <strong>Payout Terms:</strong> Studio owners receive 90% of the booking total within 48 hours after the rental date. StudioRack retains a 10% platform fee. Always transfer via bank transfer and keep a record.
+        </div>
+      </div>
+      <div class="table-card">
+        <div id="payouts-list"><div class="loading">Loading…</div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- STUDIO DETAIL PANEL -->
+<div class="detail-panel" id="detail-panel">
+  <button class="panel-close" onclick="closePanel()">← Back</button>
+  <div class="panel-photo" id="panel-photo">📷</div>
+  <div class="panel-title" id="panel-name">Studio Name</div>
+  <div class="panel-location" id="panel-location">Location</div>
+  <div class="panel-details">
+    <div class="panel-detail"><label>Price / Hour</label><span id="panel-price">—</span></div>
+    <div class="panel-detail"><label>Size</label><span id="panel-size">—</span></div>
+    <div class="panel-detail"><label>Type</label><span id="panel-type">—</span></div>
+    <div class="panel-detail"><label>Max People</label><span id="panel-people">—</span></div>
+  </div>
+  <p class="panel-desc" id="panel-desc"></p>
+  <div class="terms-box">
+    📋 By approving this studio you confirm it meets StudioRack's listing standards. Studio owners agree to payouts within 48 hours of the rental date at 90% of the booking total.
+  </div>
+  <div class="panel-actions" id="panel-actions"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL  = 'https://kkkowrtjunorlqmygory.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtra293cnRqdW5vcmxxbXlnb3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTk5NDgsImV4cCI6MjA5NjEzNTk0OH0.fnhfa4NDceaTxIZVNbwTR1rPO9Jj0-DlIgVE2FDeG1M';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  let adminUser = null;
+  let currentPanelStudio = null;
+
+  // ── Boot ─────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.user) {
+      adminUser = session.user;
+      showAdmin();
+    }
+  });
+
+  // ── Auth ─────────────────────────────────────────────────────────
+  async function adminLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const pass  = document.getElementById('login-pass').value;
+    const err   = document.getElementById('login-error');
+    err.textContent = 'Signing in…';
+
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) { err.textContent = error.message; return; }
+    adminUser = data.user;
+    showAdmin();
+  }
+
+  async function adminSignOut() {
+    await sb.auth.signOut();
+    document.getElementById('admin-layout').classList.remove('visible');
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  function showAdmin() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('admin-layout').classList.add('visible');
+    document.getElementById('admin-email').textContent = adminUser.email;
+    loadDashboard();
+  }
+
+  // ── Navigation ───────────────────────────────────────────────────
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+    closePanel();
+
+    if (name === 'pending')  loadPending();
+    if (name === 'studios')  loadAllStudios();
+    if (name === 'bookings') loadBookings();
+    if (name === 'payouts')  loadPayouts();
+  }
+
+  // ── Dashboard ────────────────────────────────────────────────────
+  async function loadDashboard() {
+    const [pendingRes, approvedRes, bookingsRes] = await Promise.all([
+      sb.from('studios').select('*', { count: 'exact' }).eq('is_approved', false),
+      sb.from('studios').select('*', { count: 'exact' }).eq('is_approved', true),
+      sb.from('bookings').select('*')
+    ]);
+
+    const pendingCount  = pendingRes.count || 0;
+    const approvedCount = approvedRes.count || 0;
+    const bookings      = bookingsRes.data || [];
+    const revenue       = bookings.reduce((s, b) => s + (b.total_price || 0), 0);
+
+    document.getElementById('stat-pending').textContent  = pendingCount;
+    document.getElementById('stat-approved').textContent = approvedCount;
+    document.getElementById('stat-bookings').textContent = bookings.length;
+    document.getElementById('stat-revenue').textContent  = '£' + revenue.toLocaleString();
+
+    if (pendingCount > 0) {
+      document.getElementById('pending-badge').textContent = pendingCount;
+      document.getElementById('pending-badge').style.display = 'inline-block';
+    }
+
+    renderPendingTable(pendingRes.data || [], 'dashboard-pending-list', true);
+  }
+
+  // ── Pending Studios ──────────────────────────────────────────────
+  async function loadPending() {
+    const { data } = await sb.from('studios').select('*').eq('is_approved', false).order('created_at', { ascending: false });
+    renderPendingTable(data || [], 'pending-list', false);
+  }
+
+  function renderPendingTable(studios, containerId, limit) {
+    const el = document.getElementById(containerId);
+    const list = limit ? studios.slice(0, 5) : studios;
+
+    if (list.length === 0) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">✅</div><p>No studios pending approval</p></div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Studio</th>
+            <th>Type</th>
+            <th>Price/hr</th>
+            <th>Submitted</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(s => `
+            <tr>
+              <td>
+                <div class="studio-name">${s.name}</div>
+                <div class="studio-location">📍 ${s.city || s.location}</div>
+              </td>
+              <td><span class="badge badge-pending">${s.studio_type || '—'}</span></td>
+              <td>£${s.price_per_hour}/hr</td>
+              <td style="color:var(--text-muted);font-size:12px;">${new Date(s.created_at).toLocaleDateString('en-GB')}</td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-view" onclick="openPanel('${s.id}')">Review</button>
+                  <button class="btn-approve" onclick="approveStudio('${s.id}')">Approve</button>
+                  <button class="btn-reject" onclick="rejectStudio('${s.id}')">Reject</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ── All Studios ──────────────────────────────────────────────────
+  async function loadAllStudios() {
+    const { data } = await sb.from('studios').select('*').order('created_at', { ascending: false });
+    const el = document.getElementById('all-studios-list');
+    const list = data || [];
+
+    if (list.length === 0) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">📷</div><p>No studios listed yet</p></div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Studio</th>
+            <th>Type</th>
+            <th>Price/hr</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(s => `
+            <tr>
+              <td>
+                <div class="studio-name">${s.name}</div>
+                <div class="studio-location">📍 ${s.city || s.location}</div>
+              </td>
+              <td>${s.studio_type || '—'}</td>
+              <td>£${s.price_per_hour}/hr</td>
+              <td><span class="badge ${s.is_approved ? 'badge-approved' : 'badge-pending'}">${s.is_approved ? '✓ Live' : '⏳ Pending'}</span></td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-view" onclick="openPanel('${s.id}')">View</button>
+                  ${!s.is_approved ? `<button class="btn-approve" onclick="approveStudio('${s.id}')">Approve</button>` : ''}
+                  <button class="btn-reject" onclick="rejectStudio('${s.id}')">Remove</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ── Bookings ─────────────────────────────────────────────────────
+  async function loadBookings() {
+    const { data } = await sb.from('bookings').select('*, studios(name, city)').order('created_at', { ascending: false });
+    const el = document.getElementById('bookings-list');
+    const list = data || [];
+
+    if (list.length === 0) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">📅</div><p>No bookings yet</p></div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Studio</th>
+            <th>Date</th>
+            <th>Hours</th>
+            <th>Total</th>
+            <th>Payment</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(b => `
+            <tr>
+              <td>
+                <div class="studio-name">${b.studios?.name || 'Studio'}</div>
+                <div class="studio-location">${b.booking_date} at ${b.start_time}</div>
+              </td>
+              <td style="color:var(--text-muted);font-size:12px;">${new Date(b.created_at).toLocaleDateString('en-GB')}</td>
+              <td>${b.hours} hr${b.hours > 1 ? 's' : ''}</td>
+              <td style="font-weight:600;color:var(--accent);">£${b.total_price}</td>
+              <td><span class="badge ${b.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}">${b.payment_status || 'pending'}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ── Payouts ──────────────────────────────────────────────────────
+  async function loadPayouts() {
+    const { data } = await sb.from('bookings').select('*, studios(name, city)').eq('payment_status', 'paid').order('booking_date', { ascending: false });
+    const el = document.getElementById('payouts-list');
+    const list = data || [];
+
+    if (list.length === 0) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">💷</div><p>No payouts to process yet</p></div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Studio</th>
+            <th>Rental Date</th>
+            <th>Booking Total</th>
+            <th>Owner Payout (90%)</th>
+            <th>Your Fee (10%)</th>
+            <th>Payout Due</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(b => {
+            const ownerAmt = Math.round(b.total_price * 0.9);
+            const feeAmt   = b.total_price - ownerAmt;
+            const rentalDate = new Date(b.booking_date);
+            const payoutDue  = new Date(rentalDate);
+            payoutDue.setDate(payoutDue.getDate() + 2);
+            const isPastDue  = new Date() > payoutDue;
+            const isOwnerPaid = b.status === 'owner_paid';
+            return `
+              <tr>
+                <td>
+                  <div class="studio-name">${b.studios?.name || 'Studio'}</div>
+                  <div class="studio-location">📍 ${b.studios?.city || ''}</div>
+                </td>
+                <td style="color:var(--text-muted);font-size:12px;">${b.booking_date}</td>
+                <td>£${b.total_price}</td>
+                <td style="font-weight:600;color:var(--green);">£${ownerAmt}</td>
+                <td style="color:var(--accent);">£${feeAmt}</td>
+                <td style="font-size:12px;color:${isPastDue && !isOwnerPaid ? 'var(--red)' : 'var(--text-muted)'};">
+                  ${payoutDue.toLocaleDateString('en-GB')}${isPastDue && !isOwnerPaid ? ' ⚠️' : ''}
+                </td>
+                <td>
+                  ${isOwnerPaid
+                    ? '<span class="badge badge-paid">✓ Paid out</span>'
+                    : `<button class="btn-payout" onclick="markPaid('${b.id}')">Mark Paid</button>`
+                  }
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ── Approve / Reject ─────────────────────────────────────────────
+  async function approveStudio(id) {
+    const { error } = await sb.from('studios').update({ is_approved: true }).eq('id', id);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    showToast('✅ Studio approved and now live on thestudiorack.com', 'success');
+    closePanel();
+    loadDashboard();
+    if (document.getElementById('page-pending').classList.contains('active')) loadPending();
+    if (document.getElementById('page-studios').classList.contains('active')) loadAllStudios();
+  }
+
+  async function rejectStudio(id) {
+    if (!confirm('Are you sure you want to reject and remove this studio?')) return;
+    const { error } = await sb.from('studios').delete().eq('id', id);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    showToast('Studio removed', 'error');
+    closePanel();
+    loadDashboard();
+    if (document.getElementById('page-pending').classList.contains('active')) loadPending();
+    if (document.getElementById('page-studios').classList.contains('active')) loadAllStudios();
+  }
+
+  async function markPaid(bookingId) {
+    const { error } = await sb.from('bookings').update({ status: 'owner_paid' }).eq('id', bookingId);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    showToast('💷 Payout marked as complete', 'success');
+    loadPayouts();
+  }
+
+  // ── Detail Panel ─────────────────────────────────────────────────
+  async function openPanel(id) {
+    const { data: s } = await sb.from('studios').select('*').eq('id', id).single();
+    if (!s) return;
+    currentPanelStudio = s;
+
+    const photos = s.photos ? s.photos.split(',').filter(Boolean) : [];
+    const photoEl = document.getElementById('panel-photo');
+    photoEl.innerHTML = photos[0] ? `<img src="${photos[0]}">` : '📷';
+
+    document.getElementById('panel-name').textContent     = s.name;
+    document.getElementById('panel-location').textContent = '📍 ' + (s.city || s.location);
+    document.getElementById('panel-price').textContent    = '£' + s.price_per_hour + '/hr';
+    document.getElementById('panel-size').textContent     = s.size_sqft + ' sq ft';
+    document.getElementById('panel-type').textContent     = s.studio_type || '—';
+    document.getElementById('panel-people').textContent   = 'Up to ' + s.max_people;
+    document.getElementById('panel-desc').textContent     = s.description || 'No description provided.';
+
+    const actionsEl = document.getElementById('panel-actions');
+    if (!s.is_approved) {
+      actionsEl.innerHTML = `
+        <button class="btn-approve" style="flex:1;padding:12px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;" onclick="approveStudio('${s.id}')">✅ Approve Studio</button>
+        <button class="btn-reject" style="flex:1;padding:12px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;" onclick="rejectStudio('${s.id}')">❌ Reject</button>`;
+    } else {
+      actionsEl.innerHTML = `<span class="badge badge-approved" style="padding:10px 20px;font-size:13px;">✓ This studio is live</span>`;
+    }
+
+    document.getElementById('detail-panel').classList.add('open');
+  }
+
+  function closePanel() {
+    document.getElementById('detail-panel').classList.remove('open');
+    currentPanelStudio = null;
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+</script>
+</body>
+</html>
