@@ -517,6 +517,53 @@
     .price-range { width: 120px; }
   }
 
+  /* ── Off-peak deals ── */
+  .filter-tab.deals-tab {
+    background: #1a1a1a;
+    border-color: #1a1a1a;
+  }
+  .filter-tab.deals-tab span { color: #fff; }
+  .filter-tab.deals-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .filter-tab.deals-tab.active span { color: #1a1a1a; }
+  .card-offpeak-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8a6d2f;
+    background: rgba(200,169,110,0.16);
+    padding: 4px 9px;
+    border-radius: 7px;
+    margin-bottom: 8px;
+  }
+  .card-price .normally {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 6px;
+    font-weight: 400;
+  }
+  .offpeak-note {
+    font-size: 13px;
+    line-height: 1.45;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+  }
+  .offpeak-note.applied {
+    background: rgba(200,169,110,0.18);
+    color: #6f561f;
+    font-weight: 600;
+  }
+  .offpeak-note.hint {
+    background: var(--bg-warm, #f4f2ee);
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
   /* HOW IT WORKS */
   .how-section {
     background: var(--black);
@@ -1174,6 +1221,10 @@
 
 <!-- FILTER TABS -->
 <div class="filter-tabs" id="browse-section">
+  <button class="filter-tab deals-tab" onclick="toggleDeals(this)">
+    <span class="icon">⚡</span>
+    <span>Off-peak deals</span>
+  </button>
   <button class="filter-tab active" onclick="setFilter(this)">
     <span class="icon">🏙️</span>
     <span>All Studios</span>
@@ -1449,7 +1500,7 @@
           <div class="date-row">
             <div class="date-field">
               <label>Date</label>
-              <input type="date" id="book-date">
+              <input type="date" id="book-date" onchange="updatePrice()">
             </div>
             <div class="date-field">
               <label>Duration</label>
@@ -1465,7 +1516,7 @@
           </div>
           <div class="time-field">
             <label>Start time</label>
-            <select id="book-time">
+            <select id="book-time" onchange="updatePrice()">
               <option>8:00 AM</option>
               <option>9:00 AM</option>
               <option>10:00 AM</option>
@@ -1480,6 +1531,8 @@
             </select>
           </div>
         </div>
+
+        <div id="offpeak-note" class="offpeak-note hint" style="display:none;"></div>
 
         <button class="btn-book" onclick="openPayment()">Reserve now</button>
 
@@ -1745,8 +1798,52 @@
   let currentLocation = '';
   let currentMaxPrice = null;      // null = no cap
   let currentSort = 'price-asc';   // default: cheapest first
+  let currentDealsOnly = false;    // off-peak deals view
   let baseList = [];               // studios for current type+location, before price/sort
   let baseIsDemo = false;
+
+  // The price we filter/sort/display by — off-peak price when in deals view
+  function effectivePrice(s) {
+    if (currentDealsOnly && s.offpeak_price) return Number(s.offpeak_price);
+    return Number(s.price_per_hour);
+  }
+
+  // Build a human label like "Mon–Thu, start by 4pm" from the rule itself,
+  // so the displayed window always matches the discount that's actually enforced.
+  function offpeakLabel(days, before) {
+    if (!days || !days.length) return 'Off-peak rate';
+    const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const sorted = [...days].map(Number).sort((a,b)=>a-b);
+    const contiguous = sorted.every((d,i) => i===0 || d === sorted[i-1]+1);
+    let dayPart = (contiguous && sorted.length>1)
+      ? `${names[sorted[0]]}–${names[sorted[sorted.length-1]]}`
+      : sorted.map(d=>names[d]).join(', ');
+    let timePart = '';
+    if (before != null && before < 18) {
+      const h12 = before % 12 === 0 ? 12 : before % 12;
+      const ap  = before < 12 ? 'am' : 'pm';
+      timePart = `, start by ${h12}${ap}`;
+    } else if (before != null) {
+      timePart = ', any time';
+    }
+    return dayPart + timePart;
+  }
+
+  // Convert stored off-peak fields (days as "1,2,3,4" text) into usable values
+  function normalizeOffpeak(s) {
+    if (s.offpeak_price && Number(s.offpeak_price) > 0) {
+      s.offpeak_price = Number(s.offpeak_price);
+      if (typeof s.offpeak_days === 'string') {
+        s.offpeak_days = s.offpeak_days.split(',').map(x => parseInt(x,10)).filter(x => !isNaN(x));
+      }
+      if (!Array.isArray(s.offpeak_days)) s.offpeak_days = [];
+      s.offpeak_before = (s.offpeak_before != null) ? Number(s.offpeak_before) : 24;
+      s.offpeak_window = offpeakLabel(s.offpeak_days, s.offpeak_before);
+    } else {
+      s.offpeak_price = null;
+    }
+    return s;
+  }
 
   async function loadStudios(typeFilter = '', locationFilter = '') {
     currentType = typeFilter;
@@ -1776,6 +1873,7 @@
       baseList = demo;
       baseIsDemo = true;
     } else {
+      data.forEach(normalizeOffpeak);
       allStudios = data;
       baseList = data;
       baseIsDemo = false;
@@ -1783,24 +1881,33 @@
     renderFiltered();
   }
 
-  // Apply price cap + sort to the base list, then render + bind
+  // Apply deals filter + price cap + sort to the base list, then render + bind
   function renderFiltered() {
     const grid = document.getElementById('studio-grid');
     let list = baseList.slice();
 
+    // In deals view, only show studios that actually have an off-peak rate
+    if (currentDealsOnly) {
+      list = list.filter(s => s.offpeak_price && Number(s.offpeak_price) > 0);
+    }
     if (currentMaxPrice != null) {
-      list = list.filter(s => Number(s.price_per_hour) <= currentMaxPrice);
+      list = list.filter(s => effectivePrice(s) <= currentMaxPrice);
     }
     if (currentSort === 'price-asc') {
-      list.sort((a, b) => Number(a.price_per_hour) - Number(b.price_per_hour));
+      list.sort((a, b) => effectivePrice(a) - effectivePrice(b));
     } else if (currentSort === 'price-desc') {
-      list.sort((a, b) => Number(b.price_per_hour) - Number(a.price_per_hour));
+      list.sort((a, b) => effectivePrice(b) - effectivePrice(a));
     }
 
     const countEl = document.getElementById('result-count');
     if (countEl) countEl.textContent = list.length + (list.length === 1 ? ' studio' : ' studios');
 
-    if (!list.length) { grid.innerHTML = renderNoResults(); return; }
+    if (!list.length) {
+      grid.innerHTML = currentDealsOnly
+        ? `<div style="padding:60px 24px;text-align:center;color:var(--text-muted);"><div style="font-size:40px;margin-bottom:12px;">⚡</div><p style="font-size:15px;">No off-peak deals available right now.</p><p style="font-size:13px;margin-top:6px;">Check back soon — studios add discounted midweek and daytime slots regularly.</p></div>`
+        : renderNoResults();
+      return;
+    }
 
     if (baseIsDemo) {
       grid.innerHTML = renderDemoStudios(list);
@@ -1829,12 +1936,8 @@
 
   function onSortChange(val) {
     currentSort = val;
-    const countEl = document.getElementById('result-count');
     renderFiltered();
-    // update the "sorted by" caption
-    const cap = { 'price-asc': 'sorted by lowest price', 'price-desc': 'sorted by highest price', 'relevance': 'featured studios' }[val] || '';
-    const countWrap = document.querySelector('.controls-count');
-    if (countWrap && countEl) countWrap.innerHTML = countEl.outerHTML + ' · ' + cap;
+    updateControlsCaption();
   }
 
   // ── Run search from the hero search bar ──────────────────────────
@@ -1868,6 +1971,11 @@
     const imgHtml = photo
       ? `<img src="${photo}" style="width:100%;height:320px;object-fit:cover;display:block;" onerror="this.parentElement.innerHTML='<div class=card-image-placeholder style=height:320px>📷</div>'">`
       : `<div class="card-image-placeholder" style="height:320px;background:linear-gradient(135deg,#1a1a2e,#2d3561)">📷</div>`;
+    const dealMode = currentDealsOnly && s.offpeak_price;
+    const dealTag = dealMode ? `<div class="card-offpeak-tag">⚡ ${s.offpeak_window || 'Off-peak rate'}</div>` : '';
+    const priceHtml = dealMode
+      ? `<div class="card-price"><strong>£${s.offpeak_price}</strong><span>/ hour</span><span class="normally">normally £${s.price_per_hour}</span></div>`
+      : `<div class="card-price"><strong>£${s.price_per_hour}</strong><span>/ hour</span></div>`;
     return `
       <a class="studio-card" href="#" style="animation-delay:${i*0.1}s">
         <div style="position:relative">${imgHtml}
@@ -1875,6 +1983,7 @@
         </div>
         <div class="card-body">
           <div class="card-location">📍 ${s.city || s.location}</div>
+          ${dealTag}
           <div class="card-title">${s.name}</div>
           <div class="card-meta">
             <span>📐 ${s.size_sqft} sq ft</span>
@@ -1882,7 +1991,7 @@
             <span>${s.studio_type}</span>
           </div>
           <div class="card-footer">
-            <div class="card-price"><strong>£${s.price_per_hour}</strong><span>/ hour</span></div>
+            ${priceHtml}
             <div class="card-rating"><span class="star">★</span> New</div>
           </div>
         </div>
@@ -1891,10 +2000,10 @@
 
   // Demo cards shown when database is empty
   const demoStudios = [
-    { id:'demo1', name:'The White Box Studio', location:'Shoreditch, London', city:'London', price_per_hour:65, size_sqft:1200, max_people:15, studio_type:'Infinity Wall', description:'A stunning all-white infinity wall studio in the heart of Shoreditch. The seamless curved wall creates a clean endless background — perfect for fashion, portrait and product photography.', photos:'', amenities:'💡 Studio lighting,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,🅿️ Parking,🎨 Backdrops,📦 Storage' },
-    { id:'demo2', name:'Golden Hour Natural Studio', location:'Dalston, London', city:'London', price_per_hour:45, size_sqft:800, max_people:8, studio_type:'Natural Light', description:'Beautiful natural light studio flooded with north-facing daylight. Ideal for editorial, beauty and lifestyle shoots. Features exposed brick, wooden floors and large skylights.', photos:'', amenities:'☀️ Natural light,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,🌿 Rooftop access' },
+    { id:'demo1', name:'The White Box Studio', location:'Shoreditch, London', city:'London', price_per_hour:65, offpeak_price:48, offpeak_days:[1,2,3,4], offpeak_before:16, offpeak_window:'Mon–Thu, start by 4pm', size_sqft:1200, max_people:15, studio_type:'Infinity Wall', description:'A stunning all-white infinity wall studio in the heart of Shoreditch. The seamless curved wall creates a clean endless background — perfect for fashion, portrait and product photography.', photos:'', amenities:'💡 Studio lighting,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,🅿️ Parking,🎨 Backdrops,📦 Storage' },
+    { id:'demo2', name:'Golden Hour Natural Studio', location:'Dalston, London', city:'London', price_per_hour:45, offpeak_price:32, offpeak_days:[1,2,3,4,5], offpeak_before:12, offpeak_window:'Weekdays, start by 12pm', size_sqft:800, max_people:8, studio_type:'Natural Light', description:'Beautiful natural light studio flooded with north-facing daylight. Ideal for editorial, beauty and lifestyle shoots. Features exposed brick, wooden floors and large skylights.', photos:'', amenities:'☀️ Natural light,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,🌿 Rooftop access' },
     { id:'demo3', name:'Dark Matter Creative Studio', location:'Bermondsey, London', city:'London', price_per_hour:120, size_sqft:2000, max_people:25, studio_type:'Film & Video', description:'A dramatic creative space ideal for dramatic lighting, film and commercial video production. Includes a full rigging system, 3-phase power and a dedicated equipment room.', photos:'', amenities:'🎬 Rigging system,🔌 3-phase power,🚿 Changing room,☕ Kitchen,📶 WiFi,🅿️ Parking' },
-    { id:'demo4', name:'Studio Noir Fashion Space', location:'Peckham, London', city:'London', price_per_hour:55, size_sqft:650, max_people:10, studio_type:'Fashion', description:'A chic intimate fashion studio with a moodboard wall, full-length mirrors and a dedicated styling area. Perfect for lookbooks, e-commerce and editorial fashion work.', photos:'', amenities:'👗 Styling room,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,👠 Wardrobe rail' }
+    { id:'demo4', name:'Studio Noir Fashion Space', location:'Peckham, London', city:'London', price_per_hour:55, offpeak_price:40, offpeak_days:[1,2,3], offpeak_before:18, offpeak_window:'Mon–Wed, any time', size_sqft:650, max_people:10, studio_type:'Fashion', description:'A chic intimate fashion studio with a moodboard wall, full-length mirrors and a dedicated styling area. Perfect for lookbooks, e-commerce and editorial fashion work.', photos:'', amenities:'👗 Styling room,🔌 Power outlets,🚿 Changing room,☕ Kitchen,📶 WiFi,👠 Wardrobe rail' }
   ];
 
   function renderDemoStudios(list = demoStudios) {
@@ -1902,6 +2011,11 @@
     const gradients = ['linear-gradient(135deg,#1a1a2e,#2d3561)','linear-gradient(135deg,#2d1b00,#6b4c1e)','linear-gradient(135deg,#0d1117,#1a2332)','linear-gradient(135deg,#1a0a2e,#4a1f6e)'];
     return list.map((s,i) => {
       const realIdx = demoStudios.indexOf(s);
+      const dealMode = currentDealsOnly && s.offpeak_price;
+      const dealTag = dealMode ? `<div class="card-offpeak-tag">⚡ ${s.offpeak_window || 'Off-peak rate'}</div>` : '';
+      const priceHtml = dealMode
+        ? `<div class="card-price"><strong>£${s.offpeak_price}</strong><span>/ hour</span><span class="normally">normally £${s.price_per_hour}</span></div>`
+        : `<div class="card-price"><strong>£${s.price_per_hour}</strong><span>/ hour</span></div>`;
       return `
       <a class="studio-card demo-card" href="#" data-idx="${realIdx}" style="animation-delay:${i*0.1}s">
         <div style="position:relative">
@@ -1911,6 +2025,7 @@
         </div>
         <div class="card-body">
           <div class="card-location">📍 ${s.city}</div>
+          ${dealTag}
           <div class="card-title">${s.name}</div>
           <div class="card-meta">
             <span>📐 ${s.size_sqft} sq ft</span>
@@ -1918,7 +2033,7 @@
             <span>${s.studio_type}</span>
           </div>
           <div class="card-footer">
-            <div class="card-price"><strong>£${s.price_per_hour}</strong><span>/ hour</span></div>
+            ${priceHtml}
             <div class="card-rating"><span class="star">★</span> 4.9+</div>
           </div>
         </div>
@@ -1969,18 +2084,67 @@
   }
 
   // ── Booking + price ──────────────────────────────────────────────
+
+  // "2:00 PM" -> 14 ; "8:00 AM" -> 8 ; "12:00 PM" -> 12
+  function parseTimeToHour(t) {
+    const m = (t || '').match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const ap = m[3].toUpperCase();
+    if (ap === 'PM' && h !== 12) h += 12;
+    if (ap === 'AM' && h === 12) h = 0;
+    return h;
+  }
+
+  // Decide the hourly rate for the currently chosen date + start time.
+  // Off-peak applies only when the studio offers it AND the slot is inside its window.
+  function getActiveRate() {
+    const s = currentStudio;
+    const standard = currentStudioPrice;
+    if (!s || !s.offpeak_price) return { rate: standard, isOffpeak: false, hasOffpeak: false };
+
+    const dateVal = document.getElementById('book-date').value;
+    const timeVal = document.getElementById('book-time').value;
+    const hasOffpeak = true;
+    if (!dateVal || !timeVal) return { rate: standard, isOffpeak: false, hasOffpeak };
+
+    const dow  = new Date(dateVal + 'T00:00:00').getDay(); // 0 Sun … 6 Sat
+    const hour = parseTimeToHour(timeVal);
+    const days = s.offpeak_days || [];
+    const before = (s.offpeak_before != null) ? s.offpeak_before : 24;
+    const inWindow = days.includes(dow) && hour != null && hour <= before;
+    return { rate: inWindow ? Number(s.offpeak_price) : standard, isOffpeak: inWindow, hasOffpeak };
+  }
+
   function updatePrice() {
     const hours = parseInt(document.getElementById('book-hours').value);
-    const price = currentStudioPrice;
-    const sub   = price * hours;
+    const { rate, isOffpeak, hasOffpeak } = getActiveRate();
+    const sub   = rate * hours;
     const fee   = Math.round(sub * 0.1);
     const total = sub + fee;
-    const label = hours === 8 ? `£${price} × full day` : `£${price} × ${hours} hour${hours>1?'s':''}`;
+    const label = hours === 8 ? `£${rate} × full day` : `£${rate} × ${hours} hour${hours>1?'s':''}`;
     document.getElementById('price-breakdown-label').textContent = label;
     document.getElementById('price-breakdown-sub').textContent   = '£' + sub;
     document.getElementById('service-fee').textContent           = '£' + fee;
     document.getElementById('total-price').textContent           = '£' + total;
     document.getElementById('pay-btn').textContent               = 'Pay £' + total;
+
+    // Off-peak messaging
+    const note = document.getElementById('offpeak-note');
+    if (note) {
+      const s = currentStudio;
+      if (isOffpeak) {
+        note.style.display = 'block';
+        note.className = 'offpeak-note applied';
+        note.textContent = `⚡ Off-peak rate applied — £${rate}/hr instead of £${currentStudioPrice}/hr`;
+      } else if (hasOffpeak && s) {
+        note.style.display = 'block';
+        note.className = 'offpeak-note hint';
+        note.textContent = `⚡ This studio has an off-peak rate of £${s.offpeak_price}/hr (${s.offpeak_window}). Pick a time in that window to get it.`;
+      } else {
+        note.style.display = 'none';
+      }
+    }
   }
 
   function openPayment() {
@@ -2011,7 +2175,8 @@
     const hours    = parseInt(document.getElementById('book-hours').value);
     const date     = document.getElementById('book-date').value;
     const time     = document.getElementById('book-time').value;
-    const subtotal = currentStudioPrice * hours;
+    const { rate }  = getActiveRate();
+    const subtotal = rate * hours;
     const fee      = Math.round(subtotal * 0.1);
     const total    = subtotal + fee;
     const payBtn   = document.getElementById('pay-btn');
@@ -2149,11 +2314,37 @@
 
   // ── Filter tabs ──────────────────────────────────────────────────
   function setFilter(el) {
+    currentDealsOnly = false;                 // selecting a type exits the deals view
     document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     const type = el.querySelector('span:last-child').textContent;
     const location = document.getElementById('search-location') ? document.getElementById('search-location').value.trim() : '';
+    const heading = document.querySelector('.studios-section .section-header h2');
+    if (heading) heading.textContent = type && type !== 'All Studios' ? type + ' studios' : 'Studios near you';
+    updateControlsCaption();
     loadStudios(type, location);
+  }
+
+  // Toggle the off-peak deals view
+  function toggleDeals(el) {
+    currentDealsOnly = true;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    const heading = document.querySelector('.studios-section .section-header h2');
+    if (heading) heading.textContent = '⚡ Off-peak deals';
+    updateControlsCaption();
+    const location = document.getElementById('search-location') ? document.getElementById('search-location').value.trim() : '';
+    loadStudios('All Studios', location);   // deals span every studio type
+  }
+
+  // Keep the "X studios · sorted by…" caption in sync
+  function updateControlsCaption() {
+    const countEl = document.getElementById('result-count');
+    const countWrap = document.querySelector('.controls-count');
+    if (!countWrap || !countEl) return;
+    const sortCap = { 'price-asc': 'sorted by lowest price', 'price-desc': 'sorted by highest price', 'relevance': 'featured' }[currentSort] || '';
+    const dealsCap = currentDealsOnly ? 'off-peak rates · ' : '';
+    countWrap.innerHTML = countEl.outerHTML + ' · ' + dealsCap + sortCap;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────
