@@ -895,6 +895,72 @@
     font-size: 32px;
   }
 
+  /* ── Photo lightbox ── */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(0,0,0,0.93);
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #lightbox-img {
+    max-width: 92vw;
+    max-height: 86vh;
+    object-fit: contain;
+    border-radius: 8px;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 30px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .lightbox-prev { left: 16px; }
+  .lightbox-next { right: 16px; }
+  .lightbox-counter {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: 14px;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 14px;
+    border-radius: 999px;
+  }
+  .lightbox-close:hover, .lightbox-nav:hover { background: rgba(255,255,255,0.28); }
+
   .modal-content {
     padding: 32px;
     display: grid;
@@ -1563,8 +1629,8 @@
     <div class="modal-images">
       <div class="modal-main-image" id="modal-main-img">📷</div>
       <div class="modal-side-images">
-        <div class="modal-side-image">🎨</div>
-        <div class="modal-side-image">💡</div>
+        <div class="modal-side-image" id="modal-side-1">🎨</div>
+        <div class="modal-side-image" id="modal-side-2">💡</div>
       </div>
     </div>
     <div class="modal-content">
@@ -1637,6 +1703,8 @@
             </select>
           </div>
         </div>
+
+        <div id="min-hours-note" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>
 
         <div id="offpeak-note" class="offpeak-note hint" style="display:none;"></div>
 
@@ -2212,11 +2280,48 @@
 
     // Photos
     const mainImg = document.getElementById('modal-main-img');
-    const photos  = s.photos ? s.photos.split(',').filter(Boolean) : [];
+    const side1 = document.getElementById('modal-side-1');
+    const side2 = document.getElementById('modal-side-2');
+    const photos = s.photos ? s.photos.split(',').filter(Boolean) : [];
+    galleryPhotos = photos;
+
     if (photos.length > 0) {
-      mainImg.innerHTML = `<img src="${photos[0]}" style="width:100%;height:100%;object-fit:cover;">`;
+      const badge = photos.length > 1
+        ? `<div style="position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,0.65);color:#fff;font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;pointer-events:none;">📷 ${photos.length} photos</div>`
+        : '';
+      mainImg.innerHTML = `<div style="position:relative;width:100%;height:100%;"><img src="${photos[0]}" style="width:100%;height:100%;object-fit:cover;">${badge}</div>`;
+      mainImg.style.cursor = 'pointer';
+      mainImg.onclick = () => openLightbox(0);
     } else {
       mainImg.textContent = '📷';
+      mainImg.style.cursor = 'default';
+      mainImg.onclick = null;
+    }
+
+    // Side image 1
+    if (photos.length > 1) {
+      side1.innerHTML = `<img src="${photos[1]}" style="width:100%;height:100%;object-fit:cover;">`;
+      side1.style.cursor = 'pointer';
+      side1.onclick = () => openLightbox(1);
+    } else {
+      side1.textContent = '🎨';
+      side1.style.cursor = 'default';
+      side1.onclick = null;
+    }
+
+    // Side image 2 (with "+N more" overlay if there are extra photos)
+    if (photos.length > 2) {
+      const extra = photos.length - 3;
+      const overlay = extra > 0
+        ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600;">+${extra} more</div>`
+        : '';
+      side2.innerHTML = `<div style="position:relative;width:100%;height:100%;"><img src="${photos[2]}" style="width:100%;height:100%;object-fit:cover;">${overlay}</div>`;
+      side2.style.cursor = 'pointer';
+      side2.onclick = () => openLightbox(2);
+    } else {
+      side2.textContent = '💡';
+      side2.style.cursor = 'default';
+      side2.onclick = null;
     }
 
     // Tags
@@ -2250,6 +2355,28 @@
         equipSection.style.display = '';
       } else {
         equipSection.style.display = 'none';
+      }
+    }
+
+    // Booking duration — build options from this studio's min/max hours
+    const minH = parseInt(s.min_hours) || 1;
+    const maxH = Math.max(parseInt(s.max_hours) || 8, minH);
+    const hoursSel = document.getElementById('book-hours');
+    if (hoursSel) {
+      let opts = '';
+      for (let h = minH; h <= maxH; h++) {
+        opts += `<option value="${h}">${h} hour${h > 1 ? 's' : ''}</option>`;
+      }
+      hoursSel.innerHTML = opts;
+      hoursSel.value = String(minH); // default to the minimum allowed
+    }
+    const minNote = document.getElementById('min-hours-note');
+    if (minNote) {
+      if (minH > 1) {
+        minNote.textContent = `This studio has a ${minH}-hour minimum booking.`;
+        minNote.style.display = 'block';
+      } else {
+        minNote.style.display = 'none';
       }
     }
 
@@ -2297,7 +2424,7 @@
     const sub   = rate * hours;
     const fee   = Math.round(sub * 0.1);
     const total = sub + fee;
-    const label = hours === 8 ? `£${rate} × full day` : `£${rate} × ${hours} hour${hours>1?'s':''}`;
+    const label = `£${rate} × ${hours} hour${hours > 1 ? 's' : ''}`;
     document.getElementById('price-breakdown-label').textContent = label;
     document.getElementById('price-breakdown-sub').textContent   = '£' + sub;
     document.getElementById('service-fee').textContent           = '£' + fee;
@@ -2541,6 +2668,68 @@
     let v = input.value.replace(/\D/g,'').substring(0,16);
     input.value = v.replace(/(.{4})/g,'$1 ').trim();
   }
+</script>
+
+<!-- PHOTO LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
+  <button class="lightbox-nav lightbox-prev" id="lightbox-prev" onclick="lightboxPrev()" aria-label="Previous">‹</button>
+  <img id="lightbox-img" src="" alt="Studio photo">
+  <button class="lightbox-nav lightbox-next" id="lightbox-next" onclick="lightboxNext()" aria-label="Next">›</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+</div>
+
+<script>
+  // ── Photo gallery / lightbox ──
+  let galleryPhotos = [];
+  let lightboxIndex = 0;
+
+  function openLightbox(i) {
+    if (!galleryPhotos.length) return;
+    lightboxIndex = i;
+    showLightboxPhoto();
+    const multi = galleryPhotos.length > 1;
+    document.getElementById('lightbox-prev').style.display = multi ? 'flex' : 'none';
+    document.getElementById('lightbox-next').style.display = multi ? 'flex' : 'none';
+    document.getElementById('lightbox-counter').style.display = multi ? 'block' : 'none';
+    document.getElementById('lightbox').style.display = 'flex';
+  }
+  function showLightboxPhoto() {
+    document.getElementById('lightbox-img').src = galleryPhotos[lightboxIndex];
+    const c = document.getElementById('lightbox-counter');
+    if (c) c.textContent = (lightboxIndex + 1) + ' / ' + galleryPhotos.length;
+  }
+  function closeLightbox() { document.getElementById('lightbox').style.display = 'none'; }
+  function lightboxPrev() {
+    if (!galleryPhotos.length) return;
+    lightboxIndex = (lightboxIndex - 1 + galleryPhotos.length) % galleryPhotos.length;
+    showLightboxPhoto();
+  }
+  function lightboxNext() {
+    if (!galleryPhotos.length) return;
+    lightboxIndex = (lightboxIndex + 1) % galleryPhotos.length;
+    showLightboxPhoto();
+  }
+
+  // Close on backdrop click (but not when clicking the image or buttons)
+  document.getElementById('lightbox').addEventListener('click', e => {
+    if (e.target.id === 'lightbox') closeLightbox();
+  });
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (document.getElementById('lightbox').style.display !== 'flex') return;
+    if (e.key === 'ArrowLeft') lightboxPrev();
+    else if (e.key === 'ArrowRight') lightboxNext();
+    else if (e.key === 'Escape') closeLightbox();
+  });
+  // Swipe navigation (touch)
+  let lbTouchX = 0;
+  const lbEl = document.getElementById('lightbox');
+  lbEl.addEventListener('touchstart', e => { lbTouchX = e.changedTouches[0].screenX; }, { passive: true });
+  lbEl.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].screenX - lbTouchX;
+    if (Math.abs(dx) > 45) { dx < 0 ? lightboxNext() : lightboxPrev(); }
+  }, { passive: true });
 </script>
 </body>
 </html>
