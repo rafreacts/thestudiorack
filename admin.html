@@ -798,6 +798,7 @@
     <div class="panel-detail"><label>Size</label><span id="panel-size">—</span></div>
     <div class="panel-detail"><label>Type</label><span id="panel-type">—</span></div>
     <div class="panel-detail"><label>Max People</label><span id="panel-people">—</span></div>
+    <div class="panel-detail"><label>Booking length</label><span id="panel-hours">—</span></div>
   </div>
   <p class="panel-desc" id="panel-desc"></p>
   <div id="panel-equipment-wrap" style="display:none;margin-bottom:16px;">
@@ -1181,6 +1182,9 @@
     document.getElementById('panel-size').textContent     = s.size_sqft + ' sq ft';
     document.getElementById('panel-type').textContent     = s.studio_type || '—';
     document.getElementById('panel-people').textContent   = 'Up to ' + s.max_people;
+    const minH = parseInt(s.min_hours) || 1;
+    const maxH = Math.max(parseInt(s.max_hours) || 8, minH);
+    document.getElementById('panel-hours').textContent    = minH + '–' + maxH + ' hrs';
     document.getElementById('panel-desc').textContent     = s.description || 'No description provided.';
 
     // Equipment (read-only, for review context)
