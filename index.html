@@ -73,6 +73,11 @@
   .nav-links a:hover { color: var(--text); }
 
   .host-banner {
+    position: fixed;
+    top: 72px;
+    left: 0;
+    right: 0;
+    z-index: 99;
     background: #1a1a1a;
     color: #fff;
     display: flex;
@@ -81,7 +86,6 @@
     gap: 16px;
     padding: 12px 20px;
     font-size: 14px;
-    position: relative;
   }
   .host-banner-btn {
     background: var(--accent);
@@ -113,6 +117,36 @@
     align-items: center;
     gap: 16px;
   }
+  .account-wrap { position: relative; }
+  .account-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    min-width: 210px;
+    padding: 8px;
+    z-index: 200;
+  }
+  .account-email {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .account-menu-item {
+    display: block;
+    padding: 9px 10px;
+    font-size: 13px;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 8px;
+  }
+  .account-menu-item:hover { background: #f4f2ee; }
 
   .btn-ghost {
     background: none;
@@ -1220,7 +1254,14 @@
   </ul>
   <div class="nav-actions">
     <a href="#" class="btn-ghost" onclick="showSection('list')">List your studio</a>
-    <a href="#" class="btn-primary" id="auth-btn" onclick="showAuthModal()">Sign in</a>
+    <div class="account-wrap">
+      <a href="#" class="btn-primary" id="auth-btn" onclick="showAuthModal()">Sign in</a>
+      <div class="account-menu" id="account-menu" style="display:none;">
+        <div class="account-email" id="account-menu-email"></div>
+        <a href="/host.html" id="account-dashboard-link" class="account-menu-item" style="display:none;">⚡ Host dashboard</a>
+        <a href="#" class="account-menu-item" onclick="handleSignOut();return false;">Sign out</a>
+      </div>
+    </div>
   </div>
 </nav>
 
@@ -1784,6 +1825,7 @@
     hostBannerDismissed = true;
     const banner = document.getElementById('host-banner');
     if (banner) banner.style.display = 'none';
+    adjustForBanner();
   }
 
   function updateNavForUser() {
@@ -1801,6 +1843,7 @@
     const banner = document.getElementById('host-banner');
     if (banner) {
       banner.style.display = (isStudioOwner() && !hostBannerDismissed) ? 'flex' : 'none';
+      adjustForBanner();
     }
   }
 
@@ -1810,8 +1853,32 @@
   }
 
   function showAccountModal() {
-    alert(`Signed in as ${currentUser.email}\n\nAccount dashboard coming soon!`);
+    const menu = document.getElementById('account-menu');
+    if (!menu || !currentUser) return;
+    document.getElementById('account-menu-email').textContent = currentUser.email;
+    document.getElementById('account-dashboard-link').style.display = isStudioOwner() ? 'block' : 'none';
+    menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
   }
+
+  // Close the account menu when clicking outside it
+  document.addEventListener('click', e => {
+    const wrap = document.querySelector('.account-wrap');
+    const menu = document.getElementById('account-menu');
+    if (menu && wrap && !wrap.contains(e.target)) menu.style.display = 'none';
+  });
+
+  // Push page content down so the fixed banner doesn't cover the hero
+  function adjustForBanner() {
+    const banner = document.getElementById('host-banner');
+    const hero = document.querySelector('.hero');
+    if (!hero) return;
+    if (banner && banner.style.display === 'flex' && banner.offsetHeight) {
+      hero.style.marginTop = (72 + banner.offsetHeight) + 'px';
+    } else {
+      hero.style.marginTop = '';
+    }
+  }
+  window.addEventListener('resize', adjustForBanner);
 
   async function handleSignUp() {
     const email = document.getElementById('auth-email').value.trim();
