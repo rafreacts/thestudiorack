@@ -435,6 +435,88 @@
 
   .card-rating .star { color: var(--accent); }
 
+  /* ── Controls bar: price slider + sort + count ── */
+  .controls-bar {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px 48px 4px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+  .controls-count {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-right: auto;
+  }
+  .controls-count strong { color: var(--text); font-weight: 600; }
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .control-group label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .price-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 160px;
+    height: 3px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  .price-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--black);
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  }
+  .price-range::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--black);
+    cursor: pointer;
+    border: 2px solid #fff;
+  }
+  .price-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 78px;
+  }
+  .sort-select {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    outline: none;
+  }
+  .sort-select:hover { border-color: var(--black); }
+  @media (max-width: 768px) {
+    .controls-bar { padding: 16px 20px 4px; gap: 18px; }
+    .controls-count { width: 100%; margin-bottom: 4px; }
+    .price-range { width: 120px; }
+  }
+
   /* HOW IT WORKS */
   .how-section {
     background: var(--black);
@@ -1118,6 +1200,24 @@
   </button>
 </div>
 
+<!-- CONTROLS: price filter + sort (value-first) -->
+<div class="controls-bar">
+  <div class="controls-count"><strong id="result-count">—</strong> · sorted by lowest price</div>
+  <div class="control-group">
+    <label for="price-range">Max price</label>
+    <input type="range" id="price-range" class="price-range" min="20" max="200" step="5" value="200" oninput="onPriceInput(this.value)">
+    <span class="price-value" id="price-value">Any price</span>
+  </div>
+  <div class="control-group">
+    <label for="sort-select">Sort</label>
+    <select id="sort-select" class="sort-select" onchange="onSortChange(this.value)">
+      <option value="price-asc">Lowest price first</option>
+      <option value="price-desc">Highest price first</option>
+      <option value="relevance">Featured</option>
+    </select>
+  </div>
+</div>
+
 <!-- STUDIO GRID -->
 <section class="studios-section">
   <div class="section-header">
@@ -1640,7 +1740,17 @@
   }
 
   // ── Load studios from Supabase ───────────────────────────────────
+  // ── Filter/sort state (value-first defaults) ──
+  let currentType = '';
+  let currentLocation = '';
+  let currentMaxPrice = null;      // null = no cap
+  let currentSort = 'price-asc';   // default: cheapest first
+  let baseList = [];               // studios for current type+location, before price/sort
+  let baseIsDemo = false;
+
   async function loadStudios(typeFilter = '', locationFilter = '') {
+    currentType = typeFilter;
+    currentLocation = locationFilter;
     const grid = document.getElementById('studio-grid');
     grid.innerHTML = '<p style="color:var(--text-muted);padding:24px;">Loading studios…</p>';
 
@@ -1663,16 +1773,68 @@
       if (locationFilter) {
         demo = demo.filter(s => (s.city || '').toLowerCase().includes(locationFilter.toLowerCase()) || (s.location || '').toLowerCase().includes(locationFilter.toLowerCase()));
       }
-      grid.innerHTML = demo.length ? renderDemoStudios(demo) : renderNoResults();
-      bindDemoCards(demo);
-      return;
+      baseList = demo;
+      baseIsDemo = true;
+    } else {
+      allStudios = data;
+      baseList = data;
+      baseIsDemo = false;
+    }
+    renderFiltered();
+  }
+
+  // Apply price cap + sort to the base list, then render + bind
+  function renderFiltered() {
+    const grid = document.getElementById('studio-grid');
+    let list = baseList.slice();
+
+    if (currentMaxPrice != null) {
+      list = list.filter(s => Number(s.price_per_hour) <= currentMaxPrice);
+    }
+    if (currentSort === 'price-asc') {
+      list.sort((a, b) => Number(a.price_per_hour) - Number(b.price_per_hour));
+    } else if (currentSort === 'price-desc') {
+      list.sort((a, b) => Number(b.price_per_hour) - Number(a.price_per_hour));
     }
 
-    allStudios = data;
-    grid.innerHTML = data.map((s, i) => renderStudioCard(s, i)).join('');
-    grid.querySelectorAll('.studio-card').forEach((card, i) => {
-      card.addEventListener('click', e => { e.preventDefault(); openStudio(data[i]); });
-    });
+    const countEl = document.getElementById('result-count');
+    if (countEl) countEl.textContent = list.length + (list.length === 1 ? ' studio' : ' studios');
+
+    if (!list.length) { grid.innerHTML = renderNoResults(); return; }
+
+    if (baseIsDemo) {
+      grid.innerHTML = renderDemoStudios(list);
+      bindDemoCards(list);
+    } else {
+      grid.innerHTML = list.map((s, i) => renderStudioCard(s, i)).join('');
+      grid.querySelectorAll('.studio-card').forEach((card, i) => {
+        card.addEventListener('click', e => { e.preventDefault(); openStudio(list[i]); });
+      });
+    }
+  }
+
+  // ── Controls handlers ──
+  function onPriceInput(val) {
+    const v = Number(val);
+    const label = document.getElementById('price-value');
+    if (v >= 200) {
+      currentMaxPrice = null;
+      if (label) label.textContent = 'Any price';
+    } else {
+      currentMaxPrice = v;
+      if (label) label.textContent = 'Up to £' + v + '/hr';
+    }
+    renderFiltered();
+  }
+
+  function onSortChange(val) {
+    currentSort = val;
+    const countEl = document.getElementById('result-count');
+    renderFiltered();
+    // update the "sorted by" caption
+    const cap = { 'price-asc': 'sorted by lowest price', 'price-desc': 'sorted by highest price', 'relevance': 'featured studios' }[val] || '';
+    const countWrap = document.querySelector('.controls-count');
+    if (countWrap && countEl) countWrap.innerHTML = countEl.outerHTML + ' · ' + cap;
   }
 
   // ── Run search from the hero search bar ──────────────────────────
