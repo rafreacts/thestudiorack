@@ -72,6 +72,42 @@
 
   .nav-links a:hover { color: var(--text); }
 
+  .host-banner {
+    background: #1a1a1a;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 20px;
+    font-size: 14px;
+    position: relative;
+  }
+  .host-banner-btn {
+    background: var(--accent);
+    color: #1a1a1a;
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .host-banner-close {
+    position: absolute;
+    right: 16px;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .host-banner-close:hover { color: #fff; }
+  @media (max-width: 768px) {
+    .host-banner { flex-direction: column; gap: 10px; padding: 12px 40px; font-size: 13px; text-align: center; }
+  }
+
   .nav-actions {
     display: flex;
     align-items: center;
@@ -1188,6 +1224,13 @@
   </div>
 </nav>
 
+<!-- STUDIO OWNER BANNER -->
+<div class="host-banner" id="host-banner" style="display:none;">
+  <span>⚡ You're signed in as a studio owner.</span>
+  <a href="/host.html" class="host-banner-btn">Go to your dashboard →</a>
+  <button class="host-banner-close" onclick="dismissHostBanner()" aria-label="Dismiss">✕</button>
+</div>
+
 <!-- HERO -->
 <section class="hero" id="home-section">
   <span class="hero-eyebrow">The UK's Photography Studio Marketplace</span>
@@ -1478,7 +1521,7 @@
           <span class="tag">🅿️ Parking available</span>
         </div>
         <p class="modal-description" id="modal-desc">A stunning all-white cyclorama studio in the heart of Shoreditch. Perfect for fashion, portrait, and product photography. Features a seamless white curved wall, professional lighting rigs, and a fully equipped changing room.</p>
-        <div class="modal-amenities">
+        <div class="modal-amenities" id="modal-amenities">
           <h3>What's included</h3>
           <div class="amenity-grid">
             <div class="amenity"><span class="icon">💡</span> Studio lighting</div>
@@ -1495,7 +1538,7 @@
 
       <div class="booking-card">
         <div class="booking-price"><strong id="modal-price">£65</strong> <span>/ hour</span></div>
-        <div class="booking-rating">★ 4.97 · 142 reviews</div>
+        <div class="booking-rating" id="modal-rating">★ New</div>
 
         <div class="booking-dates">
           <div class="date-row">
@@ -1731,15 +1774,33 @@
   });
 
   // ── Auth UI ──────────────────────────────────────────────────────
+  let hostBannerDismissed = false;
+
+  function isStudioOwner() {
+    return !!(currentUser && currentUser.user_metadata && currentUser.user_metadata.role === 'studio_owner');
+  }
+
+  function dismissHostBanner() {
+    hostBannerDismissed = true;
+    const banner = document.getElementById('host-banner');
+    if (banner) banner.style.display = 'none';
+  }
+
   function updateNavForUser() {
     const btn = document.getElementById('auth-btn');
-    if (!btn) return;
-    if (currentUser) {
-      btn.textContent = 'My Account';
-      btn.onclick = showAccountModal;
-    } else {
-      btn.textContent = 'Sign in';
-      btn.onclick = showAuthModal;
+    if (btn) {
+      if (currentUser) {
+        btn.textContent = 'My Account';
+        btn.onclick = showAccountModal;
+      } else {
+        btn.textContent = 'Sign in';
+        btn.onclick = showAuthModal;
+      }
+    }
+    // Show the studio-owner banner if a host is signed in on the main site
+    const banner = document.getElementById('host-banner');
+    if (banner) {
+      banner.style.display = (isStudioOwner() && !hostBannerDismissed) ? 'flex' : 'none';
     }
   }
 
@@ -1772,6 +1833,7 @@
     msg.textContent = 'Signing in…';
     const { error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) { msg.textContent = error.message; return; }
+    hostBannerDismissed = false;
     closeModal('auth-modal');
   }
 
@@ -2073,11 +2135,23 @@
     const tags = [s.studio_type, `📐 ${s.size_sqft} sq ft`, `👤 Up to ${s.max_people}`].filter(Boolean);
     document.getElementById('modal-tags').innerHTML = tags.map(t => `<span class="tag">${t}</span>`).join('');
 
-    // Amenities
+    // Amenities — show only what the host actually listed; hide the section if none
+    const amenSection = document.getElementById('modal-amenities');
     const amenGrid = document.querySelector('.amenity-grid');
-    if (s.amenities) {
-      amenGrid.innerHTML = s.amenities.split(',').map(a => `<div class="amenity"><span class="icon">${a.trim().split(' ')[0]}</span> ${a.trim().split(' ').slice(1).join(' ')}</div>`).join('');
+    const amenList = (s.amenities || '').split(',').map(a => a.trim()).filter(Boolean);
+    if (amenList.length) {
+      amenGrid.innerHTML = amenList.map(a => {
+        const parts = a.split(' ');
+        return `<div class="amenity"><span class="icon">${parts[0]}</span> ${parts.slice(1).join(' ')}</div>`;
+      }).join('');
+      amenSection.style.display = '';
+    } else {
+      amenSection.style.display = 'none';
     }
+
+    // Rating — real review system not built yet, so show "New" until reviews exist
+    const ratingEl = document.getElementById('modal-rating');
+    if (ratingEl) ratingEl.textContent = '★ New';
 
     updatePrice();
     document.getElementById('studio-modal').classList.add('active');
