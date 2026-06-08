@@ -220,6 +220,12 @@
     </div>
     <div class="form-group"><label>Description</label><textarea id="l-desc" placeholder="Describe your studio…" style="height:90px;resize:vertical;"></textarea></div>
 
+    <div class="form-group">
+      <label>Equipment in the studio</label>
+      <textarea id="l-equipment" style="height:130px;resize:vertical;" placeholder="List everything photographers can use, with quantities. For example:&#10;&#10;Lighting: 3× Godox AD600 Pro, 2× Godox SK400&#10;Modifiers: 1× large octabox, 1× strip softbox, 1× beauty dish, 1× snoot, barn doors&#10;Backdrops: white / grey / black Colorama paper rolls, chroma green&#10;Props: sofa, wooden table, 2× chairs, stool, fan&#10;Grip: 4× C-stands, 2× boom arms, polyboards (1× black, 1× white), sandbags"></textarea>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;">This is what photographers most want to know before booking — listing it here saves them calling to ask, and helps your studio get picked.</p>
+    </div>
+
     <div class="form-group" style="border-top:1px solid #eee;padding-top:18px;margin-top:6px;">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
         <input type="checkbox" id="l-offpeak-on" onchange="toggleOffpeakFields()" style="width:auto;"> ⚡ Offer a discounted off-peak rate
@@ -441,6 +447,7 @@
     const type = document.getElementById('l-type').value;
     const people = parseInt(document.getElementById('l-people').value);
     const desc = document.getElementById('l-desc').value.trim();
+    const equipment = document.getElementById('l-equipment').value.trim();
     const msg = document.getElementById('listing-msg');
 
     if (!name || !location || !city || !size || !price || !type) { msg.textContent = 'Please fill in all required fields.'; return; }
@@ -467,7 +474,7 @@
     const { error } = await sb.from('studios').insert({
       owner_id: host.id, name, location, city, size_sqft: size, price_per_hour: price,
       studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','), is_approved: false,
-      amenities,
+      amenities, equipment,
       offpeak_price, offpeak_days, offpeak_before
     });
     if (error) { msg.textContent = 'Error: ' + error.message; return; }
