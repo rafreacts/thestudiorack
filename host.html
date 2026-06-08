@@ -98,6 +98,8 @@
   .modal h2 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 500; margin-bottom: 4px; }
   .modal p.sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; font-weight: 300; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .day-opt { display: inline-flex; align-items: center; font-size: 13px; padding: 7px 11px; border: 1px solid #e2e0db; border-radius: 8px; cursor: pointer; user-select: none; background: #fff; }
+  .day-opt:hover { border-color: var(--black); }
   .upload-status { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
 
   .toast { position: fixed; bottom: 28px; right: 28px; background: var(--black); color: white; border-radius: 12px; padding: 14px 20px; font-size: 13px; z-index: 2000; opacity: 0; transform: translateY(60px); transition: all 0.3s; }
@@ -214,6 +216,40 @@
       <div class="form-group"><label>Max People</label><input type="number" id="l-people" placeholder="10"></div>
     </div>
     <div class="form-group"><label>Description</label><textarea id="l-desc" placeholder="Describe your studio…" style="height:90px;resize:vertical;"></textarea></div>
+
+    <div class="form-group" style="border-top:1px solid #eee;padding-top:18px;margin-top:6px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+        <input type="checkbox" id="l-offpeak-on" onchange="toggleOffpeakFields()" style="width:auto;"> ⚡ Offer a discounted off-peak rate
+      </label>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;">Optional, but recommended. Set a lower price for your quiet midweek/daytime hours. Photographers find these under “Off-peak deals”, and the discount applies automatically when they book inside your chosen window — filling slots that would otherwise sit empty.</p>
+    </div>
+    <div id="l-offpeak-fields" style="display:none;">
+      <div class="form-row">
+        <div class="form-group"><label>Off-peak price / hour (£)</label><input type="number" id="l-offpeak-price" placeholder="e.g. 40"></div>
+        <div class="form-group"><label>Latest start time for this rate</label>
+          <select id="l-offpeak-before">
+            <option value="10">Start by 10am</option>
+            <option value="12">Start by 12pm</option>
+            <option value="14">Start by 2pm</option>
+            <option value="16" selected>Start by 4pm</option>
+            <option value="18">Any time</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Days the off-peak rate applies</label>
+        <div id="l-offpeak-days" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+          <label class="day-opt"><input type="checkbox" value="1" style="width:auto;margin-right:5px;">Mon</label>
+          <label class="day-opt"><input type="checkbox" value="2" style="width:auto;margin-right:5px;">Tue</label>
+          <label class="day-opt"><input type="checkbox" value="3" style="width:auto;margin-right:5px;">Wed</label>
+          <label class="day-opt"><input type="checkbox" value="4" style="width:auto;margin-right:5px;">Thu</label>
+          <label class="day-opt"><input type="checkbox" value="5" style="width:auto;margin-right:5px;">Fri</label>
+          <label class="day-opt"><input type="checkbox" value="6" style="width:auto;margin-right:5px;">Sat</label>
+          <label class="day-opt"><input type="checkbox" value="0" style="width:auto;margin-right:5px;">Sun</label>
+        </div>
+      </div>
+    </div>
+
     <div class="form-group"><label>Photos</label><input type="file" id="l-photos" multiple accept="image/*" onchange="uploadPhotos(this)"><p class="upload-status" id="upload-status"></p></div>
     <p class="msg" id="listing-msg" style="text-align:left;"></p>
     <button class="btn-primary" onclick="submitStudio()">Submit for Review</button>
@@ -321,7 +357,7 @@
       ${list.map(s => `<tr>
         <td><div class="s-name">${s.name}</div><div class="s-loc">📍 ${s.city || s.location}</div></td>
         <td>${s.studio_type || '—'}</td>
-        <td>£${s.price_per_hour}</td>
+        <td>£${s.price_per_hour}${s.offpeak_price ? `<div style="font-size:11px;color:#8a6d2f;margin-top:2px;">⚡ £${s.offpeak_price} off-peak</div>` : ''}</td>
         <td><span class="badge ${s.is_approved ? 'badge-live' : 'badge-pending'}">${s.is_approved ? '✓ Live' : '⏳ Under review'}</span></td>
       </tr>`).join('')}
     </tbody></table>`;
@@ -368,6 +404,11 @@
     status.textContent = `✅ ${photoUrls.length} photo(s) uploaded`;
   }
 
+  function toggleOffpeakFields() {
+    document.getElementById('l-offpeak-fields').style.display =
+      document.getElementById('l-offpeak-on').checked ? 'block' : 'none';
+  }
+
   async function submitStudio() {
     const name = document.getElementById('l-name').value.trim();
     const location = document.getElementById('l-location').value.trim();
@@ -380,10 +421,29 @@
     const msg = document.getElementById('listing-msg');
 
     if (!name || !location || !city || !size || !price || !type) { msg.textContent = 'Please fill in all required fields.'; return; }
+
+    // Off-peak (optional)
+    let offpeak_price = null, offpeak_days = null, offpeak_before = null;
+    if (document.getElementById('l-offpeak-on').checked) {
+      offpeak_price = parseInt(document.getElementById('l-offpeak-price').value) || null;
+      const days = [...document.querySelectorAll('#l-offpeak-days input:checked')].map(c => c.value);
+      offpeak_days = days.length ? days.join(',') : null;
+      offpeak_before = parseInt(document.getElementById('l-offpeak-before').value) || null;
+      if (!offpeak_price || !offpeak_days) {
+        msg.textContent = 'Add an off-peak price and at least one day, or untick the off-peak option.';
+        return;
+      }
+      if (offpeak_price >= price) {
+        msg.textContent = 'Your off-peak price should be lower than your standard price.';
+        return;
+      }
+    }
+
     msg.textContent = 'Submitting…';
     const { error } = await sb.from('studios').insert({
       owner_id: host.id, name, location, city, size_sqft: size, price_per_hour: price,
-      studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','), is_approved: false
+      studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','), is_approved: false,
+      offpeak_price, offpeak_days, offpeak_before
     });
     if (error) { msg.textContent = 'Error: ' + error.message; return; }
     msg.textContent = '';
