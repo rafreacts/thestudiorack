@@ -628,6 +628,8 @@
     font-size: 13px;
     font-weight: 300;
   }
+  .op-day { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #ddd; padding: 6px 9px; border: 1px solid #444; border-radius: 7px; cursor: pointer; user-select: none; }
+  .op-day input { width: auto; }
 </style>
 </head>
 <body>
@@ -798,6 +800,42 @@
     <div class="panel-detail"><label>Max People</label><span id="panel-people">—</span></div>
   </div>
   <p class="panel-desc" id="panel-desc"></p>
+
+  <div class="terms-box" style="background:#1a1a1a;border:1px solid #c8a96e;">
+    <div style="font-weight:600;color:#c8a96e;margin-bottom:10px;">⚡ Off-peak rate (override)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div>
+        <label style="display:block;font-size:11px;color:#999;margin-bottom:4px;">Off-peak £/hr</label>
+        <input type="number" id="op-price" placeholder="e.g. 40" style="width:100%;padding:9px;border-radius:8px;border:1px solid #444;background:#222;color:#fff;font-family:inherit;font-size:13px;">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:#999;margin-bottom:4px;">Latest start</label>
+        <select id="op-before" style="width:100%;padding:9px;border-radius:8px;border:1px solid #444;background:#222;color:#fff;font-family:inherit;font-size:13px;">
+          <option value="10">By 10am</option>
+          <option value="12">By 12pm</option>
+          <option value="14">By 2pm</option>
+          <option value="16">By 4pm</option>
+          <option value="18">Any time</option>
+        </select>
+      </div>
+    </div>
+    <label style="display:block;font-size:11px;color:#999;margin-bottom:6px;">Days it applies</label>
+    <div id="op-days" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+      <label class="op-day"><input type="checkbox" value="1">Mon</label>
+      <label class="op-day"><input type="checkbox" value="2">Tue</label>
+      <label class="op-day"><input type="checkbox" value="3">Wed</label>
+      <label class="op-day"><input type="checkbox" value="4">Thu</label>
+      <label class="op-day"><input type="checkbox" value="5">Fri</label>
+      <label class="op-day"><input type="checkbox" value="6">Sat</label>
+      <label class="op-day"><input type="checkbox" value="0">Sun</label>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveOffpeak()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#c8a96e;color:#1a1a1a;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Save off-peak</button>
+      <button onclick="clearOffpeak()" style="padding:10px 14px;border-radius:8px;border:1px solid #444;background:transparent;color:#bbb;font-family:inherit;font-size:13px;cursor:pointer;">Clear</button>
+    </div>
+    <p id="op-msg" style="font-size:12px;color:#c8a96e;margin-top:8px;min-height:14px;"></p>
+  </div>
+
   <div class="terms-box">
     📋 By approving this studio you confirm it meets StudioRack's listing standards. Studio owners agree to payouts within 48 hours of the rental date at 90% of the booking total.
   </div>
@@ -937,7 +975,7 @@
                 <div class="studio-location">📍 ${s.city || s.location}</div>
               </td>
               <td><span class="badge badge-pending">${s.studio_type || '—'}</span></td>
-              <td>£${s.price_per_hour}/hr</td>
+              <td>£${s.price_per_hour}/hr${s.offpeak_price ? `<div style="font-size:11px;color:#c8a96e;margin-top:2px;">⚡ £${s.offpeak_price} off-peak</div>` : ""}</td>
               <td style="color:var(--text-muted);font-size:12px;">${new Date(s.created_at).toLocaleDateString('en-GB')}</td>
               <td>
                 <div class="action-btns">
@@ -982,7 +1020,7 @@
                 <div class="studio-location">📍 ${s.city || s.location}</div>
               </td>
               <td>${s.studio_type || '—'}</td>
-              <td>£${s.price_per_hour}/hr</td>
+              <td>£${s.price_per_hour}/hr${s.offpeak_price ? `<div style="font-size:11px;color:#c8a96e;margin-top:2px;">⚡ £${s.offpeak_price} off-peak</div>` : ""}</td>
               <td><span class="badge ${s.is_approved ? 'badge-approved' : 'badge-pending'}">${s.is_approved ? '✓ Live' : '⏳ Pending'}</span></td>
               <td>
                 <div class="action-btns">
@@ -1141,6 +1179,15 @@
     document.getElementById('panel-people').textContent   = 'Up to ' + s.max_people;
     document.getElementById('panel-desc').textContent     = s.description || 'No description provided.';
 
+    // Populate off-peak override fields
+    document.getElementById('op-price').value  = s.offpeak_price || '';
+    document.getElementById('op-before').value = (s.offpeak_before != null) ? s.offpeak_before : 16;
+    const opDays = typeof s.offpeak_days === 'string'
+      ? s.offpeak_days.split(',').map(x => x.trim())
+      : (Array.isArray(s.offpeak_days) ? s.offpeak_days.map(String) : []);
+    document.querySelectorAll('#op-days input').forEach(c => { c.checked = opDays.includes(c.value); });
+    document.getElementById('op-msg').textContent = '';
+
     const actionsEl = document.getElementById('panel-actions');
     if (!s.is_approved) {
       actionsEl.innerHTML = `
@@ -1151,6 +1198,48 @@
     }
 
     document.getElementById('detail-panel').classList.add('open');
+  }
+
+  async function saveOffpeak() {
+    if (!currentPanelStudio) return;
+    const msg = document.getElementById('op-msg');
+    const price = parseInt(document.getElementById('op-price').value) || null;
+    const before = parseInt(document.getElementById('op-before').value) || null;
+    const days = [...document.querySelectorAll('#op-days input:checked')].map(c => c.value);
+
+    if (price && !days.length) { msg.style.color = '#ff9b9b'; msg.textContent = 'Pick at least one day (or press Clear).'; return; }
+    if (price && currentPanelStudio.price_per_hour && price >= currentPanelStudio.price_per_hour) {
+      msg.style.color = '#ff9b9b'; msg.textContent = 'Off-peak should be below the £' + currentPanelStudio.price_per_hour + ' standard rate.'; return;
+    }
+
+    msg.style.color = '#c8a96e';
+    msg.textContent = 'Saving…';
+    const { error } = await sb.from('studios').update({
+      offpeak_price:  price,
+      offpeak_days:   price ? days.join(',') : null,
+      offpeak_before: price ? before : null
+    }).eq('id', currentPanelStudio.id);
+
+    if (error) { msg.style.color = '#ff9b9b'; msg.textContent = 'Error: ' + error.message; return; }
+    currentPanelStudio.offpeak_price = price;
+    msg.textContent = '✓ Off-peak rate saved';
+    showToast('✅ Off-peak rate updated');
+  }
+
+  async function clearOffpeak() {
+    if (!currentPanelStudio) return;
+    document.getElementById('op-price').value = '';
+    document.querySelectorAll('#op-days input').forEach(c => c.checked = false);
+    const msg = document.getElementById('op-msg');
+    msg.style.color = '#c8a96e';
+    msg.textContent = 'Clearing…';
+    const { error } = await sb.from('studios').update({
+      offpeak_price: null, offpeak_days: null, offpeak_before: null
+    }).eq('id', currentPanelStudio.id);
+    if (error) { msg.style.color = '#ff9b9b'; msg.textContent = 'Error: ' + error.message; return; }
+    currentPanelStudio.offpeak_price = null;
+    msg.textContent = '✓ Off-peak rate removed';
+    showToast('✅ Off-peak rate removed');
   }
 
   function closePanel() {
