@@ -100,6 +100,9 @@
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .day-opt { display: inline-flex; align-items: center; font-size: 13px; padding: 7px 11px; border: 1px solid #e2e0db; border-radius: 8px; cursor: pointer; user-select: none; background: #fff; }
   .day-opt:hover { border-color: var(--black); }
+  .amen-opt { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 7px 11px; border: 1px solid #e2e0db; border-radius: 8px; cursor: pointer; user-select: none; background: #fff; }
+  .amen-opt:hover { border-color: var(--black); }
+  .amen-opt input { width: auto; margin-right: 4px; }
   .upload-status { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
 
   .toast { position: fixed; bottom: 28px; right: 28px; background: var(--black); color: white; border-radius: 12px; padding: 14px 20px; font-size: 13px; z-index: 2000; opacity: 0; transform: translateY(60px); transition: all 0.3s; }
@@ -247,6 +250,26 @@
           <label class="day-opt"><input type="checkbox" value="6" style="width:auto;margin-right:5px;">Sat</label>
           <label class="day-opt"><input type="checkbox" value="0" style="width:auto;margin-right:5px;">Sun</label>
         </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>What's included (tick all that apply)</label>
+      <div id="l-amenities" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        <label class="amen-opt"><input type="checkbox" value="💡 Studio lighting">💡 Studio lighting</label>
+        <label class="amen-opt"><input type="checkbox" value="☀️ Natural light">☀️ Natural light</label>
+        <label class="amen-opt"><input type="checkbox" value="🔌 Power outlets">🔌 Power outlets</label>
+        <label class="amen-opt"><input type="checkbox" value="🚿 Changing room">🚿 Changing room</label>
+        <label class="amen-opt"><input type="checkbox" value="☕ Kitchen">☕ Kitchen</label>
+        <label class="amen-opt"><input type="checkbox" value="📶 WiFi">📶 WiFi</label>
+        <label class="amen-opt"><input type="checkbox" value="🅿️ Parking">🅿️ Parking</label>
+        <label class="amen-opt"><input type="checkbox" value="🎨 Backdrops">🎨 Backdrops</label>
+        <label class="amen-opt"><input type="checkbox" value="📦 Storage">📦 Storage</label>
+        <label class="amen-opt"><input type="checkbox" value="🎬 Rigging system">🎬 Rigging system</label>
+        <label class="amen-opt"><input type="checkbox" value="👗 Styling area">👗 Styling area</label>
+        <label class="amen-opt"><input type="checkbox" value="🪞 Mirrors">🪞 Mirrors</label>
+        <label class="amen-opt"><input type="checkbox" value="🌿 Rooftop access">🌿 Rooftop access</label>
+        <label class="amen-opt"><input type="checkbox" value="♿ Step-free access">♿ Step-free access</label>
       </div>
     </div>
 
@@ -440,9 +463,11 @@
     }
 
     msg.textContent = 'Submitting…';
+    const amenities = [...document.querySelectorAll('#l-amenities input:checked')].map(c => c.value).join(',');
     const { error } = await sb.from('studios').insert({
       owner_id: host.id, name, location, city, size_sqft: size, price_per_hour: price,
       studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','), is_approved: false,
+      amenities,
       offpeak_price, offpeak_days, offpeak_before
     });
     if (error) { msg.textContent = 'Error: ' + error.message; return; }
