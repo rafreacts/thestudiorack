@@ -947,6 +947,22 @@
     margin-bottom: 16px;
   }
 
+  .modal-equipment {
+    margin-top: 28px;
+  }
+  .modal-equipment h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .modal-equipment p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    font-weight: 300;
+    white-space: pre-wrap;
+  }
+
   .amenity-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1574,6 +1590,11 @@
             <div class="amenity"><span class="icon">🎨</span> Backdrop options</div>
             <div class="amenity"><span class="icon">📦</span> Equipment storage</div>
           </div>
+        </div>
+
+        <div class="modal-equipment" id="modal-equipment" style="display:none;">
+          <h3>Equipment in the studio</h3>
+          <p id="modal-equipment-text"></p>
         </div>
       </div>
 
@@ -2219,6 +2240,18 @@
     // Rating — real review system not built yet, so show "New" until reviews exist
     const ratingEl = document.getElementById('modal-rating');
     if (ratingEl) ratingEl.textContent = '★ New';
+
+    // Equipment — show the host's list (line breaks preserved); hide if empty
+    const equipSection = document.getElementById('modal-equipment');
+    const equipText = document.getElementById('modal-equipment-text');
+    if (equipSection && equipText) {
+      if (s.equipment && s.equipment.trim()) {
+        equipText.textContent = s.equipment.trim();
+        equipSection.style.display = '';
+      } else {
+        equipSection.style.display = 'none';
+      }
+    }
 
     updatePrice();
     document.getElementById('studio-modal').classList.add('active');
