@@ -800,6 +800,10 @@
     <div class="panel-detail"><label>Max People</label><span id="panel-people">—</span></div>
   </div>
   <p class="panel-desc" id="panel-desc"></p>
+  <div id="panel-equipment-wrap" style="display:none;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Equipment in the studio</div>
+    <p id="panel-equipment" style="font-size:13px;color:var(--text-muted);line-height:1.6;white-space:pre-wrap;"></p>
+  </div>
 
   <div class="terms-box" style="background:#1a1a1a;border:1px solid #c8a96e;">
     <div style="font-weight:600;color:#c8a96e;margin-bottom:10px;">⚡ Off-peak rate (override)</div>
@@ -1178,6 +1182,18 @@
     document.getElementById('panel-type').textContent     = s.studio_type || '—';
     document.getElementById('panel-people').textContent   = 'Up to ' + s.max_people;
     document.getElementById('panel-desc').textContent     = s.description || 'No description provided.';
+
+    // Equipment (read-only, for review context)
+    const eqWrap = document.getElementById('panel-equipment-wrap');
+    const eqText = document.getElementById('panel-equipment');
+    if (eqWrap && eqText) {
+      if (s.equipment && s.equipment.trim()) {
+        eqText.textContent = s.equipment.trim();
+        eqWrap.style.display = 'block';
+      } else {
+        eqWrap.style.display = 'none';
+      }
+    }
 
     // Populate off-peak override fields
     document.getElementById('op-price').value  = s.offpeak_price || '';
