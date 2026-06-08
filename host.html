@@ -218,6 +218,28 @@
       </div>
       <div class="form-group"><label>Max People</label><input type="number" id="l-people" placeholder="10"></div>
     </div>
+    <div class="form-row">
+      <div class="form-group"><label>Minimum booking (hours) *</label>
+        <select id="l-min-hours">
+          <option value="1">1 hour</option>
+          <option value="2">2 hours</option>
+          <option value="3">3 hours</option>
+          <option value="4">4 hours</option>
+          <option value="5">5 hours</option>
+          <option value="6">6 hours</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Maximum booking (hours) *</label>
+        <select id="l-max-hours">
+          <option value="4">4 hours</option>
+          <option value="6">6 hours</option>
+          <option value="8" selected>8 hours (full day)</option>
+          <option value="10">10 hours</option>
+          <option value="12">12 hours</option>
+          <option value="14">14 hours</option>
+        </select>
+      </div>
+    </div>
     <div class="form-group"><label>Description</label><textarea id="l-desc" placeholder="Describe your studio…" style="height:90px;resize:vertical;"></textarea></div>
 
     <div class="form-group">
@@ -446,11 +468,14 @@
     const price = parseInt(document.getElementById('l-price').value);
     const type = document.getElementById('l-type').value;
     const people = parseInt(document.getElementById('l-people').value);
+    const minHours = parseInt(document.getElementById('l-min-hours').value) || 1;
+    const maxHours = parseInt(document.getElementById('l-max-hours').value) || 8;
     const desc = document.getElementById('l-desc').value.trim();
     const equipment = document.getElementById('l-equipment').value.trim();
     const msg = document.getElementById('listing-msg');
 
     if (!name || !location || !city || !size || !price || !type) { msg.textContent = 'Please fill in all required fields.'; return; }
+    if (maxHours < minHours) { msg.textContent = 'Maximum booking hours must be the same as or higher than the minimum.'; return; }
 
     // Off-peak (optional)
     let offpeak_price = null, offpeak_days = null, offpeak_before = null;
@@ -474,7 +499,7 @@
     const { error } = await sb.from('studios').insert({
       owner_id: host.id, name, location, city, size_sqft: size, price_per_hour: price,
       studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','), is_approved: false,
-      amenities, equipment,
+      amenities, equipment, min_hours: minHours, max_hours: maxHours,
       offpeak_price, offpeak_days, offpeak_before
     });
     if (error) { msg.textContent = 'Error: ' + error.message; return; }
