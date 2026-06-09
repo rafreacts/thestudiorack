@@ -103,6 +103,13 @@
   .amen-opt { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 7px 11px; border: 1px solid #e2e0db; border-radius: 8px; cursor: pointer; user-select: none; background: #fff; }
   .amen-opt:hover { border-color: var(--black); }
   .amen-opt input { width: auto; margin-right: 4px; }
+  .btn-edit { background: #fff; border: 1px solid #d8d5ce; border-radius: 8px; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .btn-edit:hover { border-color: var(--black); }
+  .btn-google { width: 100%; display: flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #dadce0; border-radius: 10px; padding: 13px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: #3c4043; cursor: pointer; }
+  .btn-google:hover { background: #f8f9fa; }
+  .auth-divider { display: flex; align-items: center; text-align: center; color: var(--text-muted); font-size: 12px; margin: 16px 0; }
+  .auth-divider::before, .auth-divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border, #e2e0db); }
+  .auth-divider span { padding: 0 12px; }
   .upload-status { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
 
   .toast { position: fixed; bottom: 28px; right: 28px; background: var(--black); color: white; border-radius: 12px; padding: 14px 20px; font-size: 13px; z-index: 2000; opacity: 0; transform: translateY(60px); transition: all 0.3s; }
@@ -125,6 +132,11 @@
   <div class="login-card">
     <div class="logo">Studio<span>Rack</span></div>
     <p class="sub">Host Dashboard — manage your studios</p>
+    <button class="btn-google" onclick="hostGoogleSignIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18" style="margin-right:10px;vertical-align:middle;"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Continue with Google
+    </button>
+    <div class="auth-divider"><span>or use email</span></div>
     <div class="form-group">
       <label>Email</label>
       <input type="email" id="login-email" placeholder="you@email.com">
@@ -196,11 +208,11 @@
   </div>
 </div>
 
-<!-- ADD STUDIO MODAL -->
+<!-- ADD / EDIT STUDIO MODAL -->
 <div class="modal-overlay" id="listing-modal">
   <div class="modal">
-    <h2>List a Studio</h2>
-    <p class="sub">We'll review and have it live within 24 hours.</p>
+    <h2 id="listing-modal-title">List a Studio</h2>
+    <p class="sub" id="listing-modal-sub">We'll review and have it live within 24 hours.</p>
     <div class="form-group"><label>Studio Name *</label><input type="text" id="l-name" placeholder="e.g. The White Box Studio"></div>
     <div class="form-group"><label>Full Address *</label><input type="text" id="l-location" placeholder="123 Studio St, London E1 6RF"></div>
     <div class="form-group"><label>City *</label><input type="text" id="l-city" placeholder="London"></div>
@@ -303,7 +315,7 @@
 
     <div class="form-group"><label>Photos</label><input type="file" id="l-photos" multiple accept="image/*" onchange="uploadPhotos(this)"><p class="upload-status" id="upload-status"></p></div>
     <p class="msg" id="listing-msg" style="text-align:left;"></p>
-    <button class="btn-primary" onclick="submitStudio()">Submit for Review</button>
+    <button class="btn-primary" id="listing-submit-btn" onclick="submitStudio()">Submit for Review</button>
     <button class="btn-secondary" onclick="closeListingModal()">Cancel</button>
     <p style="font-size:11px;color:var(--text-muted);margin-top:14px;text-align:center;line-height:1.5;">By listing you agree to the 10% platform fee and payouts within 48 hours of the rental date.</p>
   </div>
@@ -319,11 +331,34 @@
 
   let host = null;
   let photoUrls = [];
+  let myStudios = [];
+  let editingStudioId = null;
 
   document.addEventListener('DOMContentLoaded', async () => {
     const { data: { session } } = await sb.auth.getSession();
-    if (session?.user) { host = session.user; showDashboard(); }
+    if (session?.user) {
+      host = session.user;
+      await ensureHostRole();   // tag Google sign-ins as studio owners
+      showDashboard();
+    }
   });
+
+  // Google sign-in from the host dashboard — redirect back here
+  async function hostGoogleSignIn() {
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/host.html' }
+    });
+    if (error) { document.getElementById('login-msg').textContent = 'Google sign-in error: ' + error.message; }
+  }
+
+  // If a host signed in (e.g. via Google) without the studio_owner role, set it
+  async function ensureHostRole() {
+    if (host && !(host.user_metadata && host.user_metadata.role === 'studio_owner')) {
+      const { data } = await sb.auth.updateUser({ data: { role: 'studio_owner' } });
+      if (data?.user) host = data.user;
+    }
+  }
 
   async function hostLogin() {
     const email = document.getElementById('login-email').value.trim();
@@ -374,7 +409,7 @@
   async function loadDashboard() {
     // Load this host's studios
     const { data: studios } = await sb.from('studios').select('*').eq('owner_id', host.id).order('created_at', { ascending: false });
-    const myStudios = studios || [];
+    myStudios = studios || [];
     const studioIds = myStudios.map(s => s.id);
 
     // Load bookings for those studios
@@ -404,12 +439,13 @@
       el.innerHTML = `<div class="empty"><div class="icon">📷</div><p>You haven't listed any studios yet. Click "Add Studio" to get started.</p></div>`;
       return;
     }
-    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Type</th><th>Price/hr</th><th>Status</th></tr></thead><tbody>
+    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Type</th><th>Price/hr</th><th>Status</th><th></th></tr></thead><tbody>
       ${list.map(s => `<tr>
         <td><div class="s-name">${s.name}</div><div class="s-loc">📍 ${s.city || s.location}</div></td>
         <td>${s.studio_type || '—'}</td>
         <td>£${s.price_per_hour}${s.offpeak_price ? `<div style="font-size:11px;color:#8a6d2f;margin-top:2px;">⚡ £${s.offpeak_price} off-peak</div>` : ''}</td>
         <td><span class="badge ${s.is_approved ? 'badge-live' : 'badge-pending'}">${s.is_approved ? '✓ Live' : '⏳ Under review'}</span></td>
+        <td><button class="btn-edit" onclick="editStudio('${s.id}')">Edit</button></td>
       </tr>`).join('')}
     </tbody></table>`;
   }
@@ -434,8 +470,73 @@
     </tbody></table>`;
   }
 
-  // Add studio
-  function openListingModal() { photoUrls = []; document.getElementById('listing-modal').classList.add('active'); }
+  // Add / edit studio
+  function clearListingForm() {
+    ['l-name','l-location','l-city','l-size','l-price','l-people','l-desc','l-equipment','l-offpeak-price'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('l-type').value = '';
+    document.getElementById('l-min-hours').value = '1';
+    document.getElementById('l-max-hours').value = '8';
+    document.getElementById('l-offpeak-on').checked = false;
+    document.getElementById('l-offpeak-before').value = '16';
+    toggleOffpeakFields();
+    document.querySelectorAll('#l-amenities input, #l-offpeak-days input').forEach(c => c.checked = false);
+    document.getElementById('upload-status').textContent = '';
+    document.getElementById('listing-msg').textContent = '';
+  }
+
+  function openListingModal() {
+    editingStudioId = null;
+    photoUrls = [];
+    clearListingForm();
+    document.getElementById('listing-modal-title').textContent = 'List a Studio';
+    document.getElementById('listing-modal-sub').textContent = "We'll review and have it live within 24 hours.";
+    document.getElementById('listing-submit-btn').textContent = 'Submit for Review';
+    document.getElementById('listing-modal').classList.add('active');
+  }
+
+  function editStudio(id) {
+    const s = myStudios.find(x => String(x.id) === String(id));
+    if (!s) return;
+    editingStudioId = s.id;
+    clearListingForm();
+
+    document.getElementById('l-name').value = s.name || '';
+    document.getElementById('l-location').value = s.location || '';
+    document.getElementById('l-city').value = s.city || '';
+    document.getElementById('l-size').value = s.size_sqft || '';
+    document.getElementById('l-price').value = s.price_per_hour || '';
+    document.getElementById('l-type').value = s.studio_type || '';
+    document.getElementById('l-people').value = s.max_people || '';
+    document.getElementById('l-min-hours').value = String(s.min_hours || 1);
+    document.getElementById('l-max-hours').value = String(s.max_hours || 8);
+    document.getElementById('l-desc').value = s.description || '';
+    document.getElementById('l-equipment').value = s.equipment || '';
+
+    // Amenities
+    const amenSet = new Set((s.amenities || '').split(',').map(a => a.trim()).filter(Boolean));
+    document.querySelectorAll('#l-amenities input').forEach(c => { c.checked = amenSet.has(c.value); });
+
+    // Off-peak
+    if (s.offpeak_price) {
+      document.getElementById('l-offpeak-on').checked = true;
+      toggleOffpeakFields();
+      document.getElementById('l-offpeak-price').value = s.offpeak_price;
+      document.getElementById('l-offpeak-before').value = String(s.offpeak_before || 16);
+      const days = typeof s.offpeak_days === 'string' ? s.offpeak_days.split(',').map(d => d.trim()) : (Array.isArray(s.offpeak_days) ? s.offpeak_days.map(String) : []);
+      document.querySelectorAll('#l-offpeak-days input').forEach(c => { c.checked = days.includes(c.value); });
+    }
+
+    // Keep existing photos unless the host uploads new ones
+    photoUrls = s.photos ? s.photos.split(',').filter(Boolean) : [];
+
+    document.getElementById('listing-modal-title').textContent = 'Edit Studio';
+    document.getElementById('listing-modal-sub').textContent = 'Edits are reviewed before going live, so your studio will show as “under review” until approved.';
+    document.getElementById('listing-submit-btn').textContent = 'Submit changes for review';
+    document.getElementById('listing-modal').classList.add('active');
+  }
+
   function closeListingModal() { document.getElementById('listing-modal').classList.remove('active'); }
 
   async function uploadPhotos(input) {
@@ -494,18 +595,29 @@
       }
     }
 
-    msg.textContent = 'Submitting…';
+    msg.textContent = editingStudioId ? 'Saving changes…' : 'Submitting…';
     const amenities = [...document.querySelectorAll('#l-amenities input:checked')].map(c => c.value).join(',');
-    const { error } = await sb.from('studios').insert({
-      owner_id: host.id, name, location, city, size_sqft: size, price_per_hour: price,
-      studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','), is_approved: false,
+    const payload = {
+      name, location, city, size_sqft: size, price_per_hour: price,
+      studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','),
+      is_approved: false,   // new listings AND edits must be approved before going live
       amenities, equipment, min_hours: minHours, max_hours: maxHours,
       offpeak_price, offpeak_days, offpeak_before
-    });
+    };
+
+    let error;
+    if (editingStudioId) {
+      ({ error } = await sb.from('studios').update(payload).eq('id', editingStudioId).eq('owner_id', host.id));
+    } else {
+      ({ error } = await sb.from('studios').insert({ owner_id: host.id, ...payload }));
+    }
     if (error) { msg.textContent = 'Error: ' + error.message; return; }
+
+    const wasEditing = !!editingStudioId;
+    editingStudioId = null;
     msg.textContent = '';
     closeListingModal();
-    showToast('✅ Studio submitted for review!');
+    showToast(wasEditing ? '✅ Changes submitted for review!' : '✅ Studio submitted for review!');
     loadDashboard();
   }
 
