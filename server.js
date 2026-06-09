@@ -119,7 +119,8 @@ app.post('/create-payment-intent', async (req, res) => {
   try {
     const { amount, studioName, bookingDate, hours } = req.body;
 
-    if (!amount || amount < 100) {
+    // amount is in POUNDS (e.g. 72 means £72). Stripe needs pence, converted below.
+    if (!amount || amount < 1) {
       return res.status(400).json({ error: 'Invalid amount' });
     }
 
