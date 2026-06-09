@@ -542,18 +542,29 @@
   async function uploadPhotos(input) {
     const files = Array.from(input.files);
     const status = document.getElementById('upload-status');
+    if (!files.length) return;
     status.textContent = `Uploading ${files.length} photo(s)…`;
     photoUrls = [];
+    let lastError = '';
     for (const file of files) {
-      const ext = file.name.split('.').pop();
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `${host.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await sb.storage.from('studio-photos').upload(path, file, { upsert: true });
+      const { error } = await sb.storage.from('studio-photos').upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
       if (!error) {
         const { data: { publicUrl } } = sb.storage.from('studio-photos').getPublicUrl(path);
         photoUrls.push(publicUrl);
+      } else {
+        lastError = error.message;
+        console.error('Photo upload failed:', error);
       }
     }
-    status.textContent = `✅ ${photoUrls.length} photo(s) uploaded`;
+    if (photoUrls.length) {
+      status.style.color = '';
+      status.textContent = `✅ ${photoUrls.length} photo(s) uploaded`;
+    } else {
+      status.style.color = '#c0392b';
+      status.textContent = '⚠️ Upload failed: ' + (lastError || 'unknown error') + ' — check the studio-photos storage bucket exists and is public.';
+    }
   }
 
   function toggleOffpeakFields() {
