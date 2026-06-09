@@ -1373,6 +1373,14 @@
       <a href="#" class="btn-primary" id="auth-btn" onclick="showAuthModal()">Sign in</a>
       <div class="account-menu" id="account-menu" style="display:none;">
         <div class="account-email" id="account-menu-email"></div>
+        <div style="padding:8px 10px;">
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Instagram (optional)</label>
+          <div style="display:flex;gap:6px;">
+            <input id="account-instagram" placeholder="@yourhandle" style="flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px;font-family:inherit;outline:none;">
+            <button onclick="saveInstagram()" style="border:none;background:var(--black);color:#fff;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Save</button>
+          </div>
+          <p id="account-instagram-msg" style="font-size:11px;color:var(--accent);margin:4px 0 0;min-height:12px;"></p>
+        </div>
         <a href="/host.html" id="account-dashboard-link" class="account-menu-item" style="display:none;">⚡ Host dashboard</a>
         <a href="#" class="account-menu-item" onclick="handleSignOut();return false;">Sign out</a>
       </div>
@@ -1891,6 +1899,10 @@
       <label>Password</label>
       <input type="password" id="auth-pass" placeholder="Min 6 characters">
     </div>
+    <div class="form-group">
+      <label>Instagram <span style="color:var(--text-muted);font-weight:400;">(optional — for photographers)</span></label>
+      <input type="text" id="auth-instagram" placeholder="@yourhandle">
+    </div>
     <p id="auth-msg" style="font-size:13px;color:var(--accent);margin-bottom:12px;"></p>
     <div style="display:flex;gap:12px;">
       <button class="btn-book" style="flex:1;" onclick="handleSignIn()">Sign In</button>
@@ -1917,6 +1929,7 @@
 
   // ── State ────────────────────────────────────────────────────────
   let currentUser     = null;
+  let userIsOwner     = false;
   let currentStudio   = null;
   let currentStudioPrice = 65;
   let allStudios      = [];
@@ -1931,8 +1944,13 @@
     // Watch auth state
     sb.auth.onAuthStateChange(async (_event, session) => {
       currentUser = session?.user ?? null;
+      userIsOwner = false;
       if (currentUser) { await applyPendingRole(); }
       updateNavForUser();
+      if (currentUser) {
+        await computeOwnerStatus();
+        updateNavForUser();
+      }
     });
 
     // Close modals on overlay click
@@ -1949,7 +1967,24 @@
   let hostBannerDismissed = false;
 
   function isStudioOwner() {
-    return !!(currentUser && currentUser.user_metadata && currentUser.user_metadata.role === 'studio_owner');
+    return userIsOwner || !!(currentUser && currentUser.user_metadata && currentUser.user_metadata.role === 'studio_owner');
+  }
+
+  // Robust owner detection: if the role metadata is missing/wrong but the user
+  // actually owns studios, treat them as an owner and repair the role.
+  async function computeOwnerStatus() {
+    if (!currentUser) { userIsOwner = false; return; }
+    if (currentUser.user_metadata && currentUser.user_metadata.role === 'studio_owner') {
+      userIsOwner = true; return;
+    }
+    try {
+      const { data } = await sb.from('studios').select('id').eq('owner_id', currentUser.id).limit(1);
+      if (data && data.length) {
+        userIsOwner = true;
+        const { data: upd } = await sb.auth.updateUser({ data: { role: 'studio_owner' } });
+        if (upd?.user) currentUser = upd.user;
+      }
+    } catch (e) { /* non-fatal */ }
   }
 
   function dismissHostBanner() {
@@ -1988,7 +2023,21 @@
     if (!menu || !currentUser) return;
     document.getElementById('account-menu-email').textContent = currentUser.email;
     document.getElementById('account-dashboard-link').style.display = isStudioOwner() ? 'block' : 'none';
+    const igInput = document.getElementById('account-instagram');
+    if (igInput) igInput.value = (currentUser.user_metadata && currentUser.user_metadata.instagram) || '';
+    document.getElementById('account-instagram-msg').textContent = '';
     menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+  }
+
+  async function saveInstagram() {
+    let handle = document.getElementById('account-instagram').value.trim();
+    if (handle && !handle.startsWith('@')) handle = '@' + handle;
+    const msg = document.getElementById('account-instagram-msg');
+    msg.textContent = 'Saving…';
+    const { data, error } = await sb.auth.updateUser({ data: { instagram: handle } });
+    if (error) { msg.textContent = error.message; return; }
+    if (data?.user) currentUser = data.user;
+    msg.textContent = '✓ Saved';
   }
 
   // Close the account menu when clicking outside it
@@ -2015,10 +2064,12 @@
     const email = document.getElementById('auth-email').value.trim();
     const pass  = document.getElementById('auth-pass').value;
     const role  = document.getElementById('auth-role').value;
+    let instagram = document.getElementById('auth-instagram').value.trim();
+    if (instagram && !instagram.startsWith('@')) instagram = '@' + instagram;
     const msg   = document.getElementById('auth-msg');
     if (!email || !pass) { msg.textContent = 'Please fill in all fields.'; return; }
     msg.textContent = 'Creating account…';
-    const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { role } } });
+    const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { role, instagram } } });
     if (error) { msg.textContent = error.message; return; }
     msg.textContent = '✅ Check your email to confirm your account!';
   }
