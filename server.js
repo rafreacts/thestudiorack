@@ -163,8 +163,8 @@ app.post('/confirm-booking', async (req, res) => {
   }
 });
 
-// Stripe webhook — handles payment events automatically
-app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+// Stripe webhook — keeps the database in sync with Stripe automatically
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -175,18 +175,47 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET || ''
     );
   } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook error: ${err.message}`);
   }
 
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      console.log('Payment succeeded:', event.data.object.id);
-      break;
-    case 'payment_intent.payment_failed':
-      console.log('Payment failed:', event.data.object.id);
-      break;
-    default:
-      console.log(`Unhandled event: ${event.type}`);
+  try {
+    switch (event.type) {
+      case 'payment_intent.succeeded': {
+        const pi = event.data.object;
+        await sbAdmin.from('bookings')
+          .update({ payment_status: 'paid', status: 'confirmed' })
+          .eq('stripe_payment_id', pi.id);
+        console.log('Payment succeeded — booking marked paid:', pi.id);
+        break;
+      }
+      case 'payment_intent.payment_failed': {
+        const pi = event.data.object;
+        await sbAdmin.from('bookings')
+          .update({ payment_status: 'failed' })
+          .eq('stripe_payment_id', pi.id);
+        console.log('Payment failed:', pi.id);
+        break;
+      }
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        const piId = charge.payment_intent;
+        const fullyRefunded = charge.amount_refunded >= charge.amount;
+        await sbAdmin.from('bookings')
+          .update({
+            payment_status: fullyRefunded ? 'refunded' : 'partially_refunded',
+            status: fullyRefunded ? 'cancelled' : 'confirmed'
+          })
+          .eq('stripe_payment_id', piId);
+        console.log('Refund processed for payment:', piId);
+        break;
+      }
+      default:
+        console.log(`Unhandled event: ${event.type}`);
+    }
+  } catch (err) {
+    // Log but still return 200 so Stripe doesn't retry endlessly on a transient DB issue
+    console.error('Error handling webhook event:', err.message);
   }
 
   res.json({ received: true });
