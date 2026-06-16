@@ -1805,7 +1805,7 @@
   <div class="payment-modal" style="text-align:center;">
     <div style="font-size:64px;margin-bottom:20px;">📩</div>
     <h2>Booking request sent!</h2>
-    <p style="margin-bottom:20px;">Your request has been sent to the studio owner to confirm. You'll get an email as soon as they accept. If they can't make the time work, you'll be refunded in full.</p>
+    <p style="margin-bottom:20px;">Your request has been sent to the studio owner. <strong>Your card has only been authorised, not charged</strong> — you'll only be charged once they accept. If they can't make the time work, the hold is released and you pay nothing.</p>
     <div style="background:#f4f2ee;border-radius:12px;padding:16px;margin-bottom:24px;text-align:left;font-size:13px;line-height:1.6;color:var(--text);">
       <strong>📸 Quick tip:</strong> once your booking is confirmed, take a few photos of the studio and equipment before you start. It only takes a minute and protects both you and the studio if any question about damage comes up later.
     </div>
@@ -2658,7 +2658,7 @@
       });
       if (stripeError) throw new Error(stripeError.message);
 
-      // 3. Save booking as a REQUEST — the studio owner confirms it
+      // 3. Save booking as a REQUEST — card is authorised, charged only when the owner accepts
       await sb.from('bookings').insert({
         studio_id:        currentStudio.id || null,
         photographer_id:  currentUser.id,
@@ -2667,7 +2667,7 @@
         hours,
         total_price:      total,
         status:           'pending',
-        payment_status:   'paid',
+        payment_status:   'authorized',
         stripe_payment_id: paymentIntent.id
       });
 
