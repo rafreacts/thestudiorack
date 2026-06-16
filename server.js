@@ -192,6 +192,91 @@ app.post('/booking-status-email', async (req, res) => {
   }
 });
 
+// Helper: verify the caller is the studio owner for a given booking
+async function verifyHostForBooking(token, bookingId) {
+  const { data: userData } = await sbAdmin.auth.getUser(token);
+  const hostId = userData?.user?.id;
+  if (!hostId) return { error: 'Not signed in', code: 401 };
+  const { data: booking } = await sbAdmin.from('bookings').select('*').eq('id', bookingId).single();
+  if (!booking) return { error: 'Booking not found', code: 404 };
+  const { data: studio } = await sbAdmin.from('studios').select('owner_id, name').eq('id', booking.studio_id).single();
+  if (!studio || studio.owner_id !== hostId) return { error: 'Not your studio', code: 403 };
+  return { booking, studioName: studio.name };
+}
+
+// Host accepts a booking — capture the held payment and confirm
+app.post('/accept-booking', async (req, res) => {
+  try {
+    const { bookingId, token } = req.body;
+    if (!bookingId || !token) return res.status(400).json({ error: 'Missing data' });
+    const v = await verifyHostForBooking(token, bookingId);
+    if (v.error) return res.status(v.code).json({ error: v.error });
+
+    // Capture the authorised payment (charges the card now)
+    try {
+      await stripe.paymentIntents.capture(v.booking.stripe_payment_id);
+    } catch (e) {
+      return res.status(400).json({ error: 'Could not take payment: ' + e.message });
+    }
+
+    await sbAdmin.from('bookings').update({ status: 'confirmed', payment_status: 'paid' }).eq('id', bookingId);
+
+    // Email the photographer
+    const { data: userData } = await sbAdmin.auth.admin.getUserById(v.booking.photographer_id);
+    const email = userData?.user?.email;
+    if (email) {
+      await resend.emails.send({
+        from: FROM, to: email,
+        subject: `Booking confirmed - ${v.studioName}`,
+        html: bookingConfirmationEmail({
+          studioName: v.studioName, bookingDate: v.booking.booking_date,
+          startTime: v.booking.start_time, hours: v.booking.hours, total: v.booking.total_price
+        })
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Accept booking error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Host declines a booking — release the held payment (no charge, no refund)
+app.post('/decline-booking', async (req, res) => {
+  try {
+    const { bookingId, token } = req.body;
+    if (!bookingId || !token) return res.status(400).json({ error: 'Missing data' });
+    const v = await verifyHostForBooking(token, bookingId);
+    if (v.error) return res.status(v.code).json({ error: v.error });
+
+    // Cancel the authorisation (releases the hold — nothing is charged)
+    try {
+      await stripe.paymentIntents.cancel(v.booking.stripe_payment_id);
+    } catch (e) {
+      console.error('Cancel authorisation failed (continuing):', e.message);
+    }
+
+    await sbAdmin.from('bookings').update({ status: 'declined', payment_status: 'cancelled' }).eq('id', bookingId);
+
+    const { data: userData } = await sbAdmin.auth.admin.getUserById(v.booking.photographer_id);
+    const email = userData?.user?.email;
+    if (email) {
+      await resend.emails.send({
+        from: FROM, to: email,
+        subject: `Booking request update - ${v.studioName}`,
+        html: bookingDeclinedEmail({
+          studioName: v.studioName, bookingDate: v.booking.booking_date,
+          startTime: v.booking.start_time, hours: v.booking.hours
+        })
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Decline booking error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create a Stripe Payment Intent
 // Called when photographer clicks "Reserve now"
 app.post('/create-payment-intent', async (req, res) => {
@@ -206,6 +291,7 @@ app.post('/create-payment-intent', async (req, res) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100), // Stripe uses pence not pounds
       currency: 'gbp',
+      capture_method: 'manual', // authorise now, only charge when the host accepts
       description: `StudioRack booking — ${studioName} — ${bookingDate} — ${hours} hour(s)`,
       metadata: {
         studioName,
