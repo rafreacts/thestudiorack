@@ -128,7 +128,6 @@ app.post('/create-payment-intent', async (req, res) => {
       amount: Math.round(amount * 100), // Stripe uses pence not pounds
       currency: 'gbp',
       description: `StudioRack booking — ${studioName} — ${bookingDate} — ${hours} hour(s)`,
-      statement_descriptor_suffix: 'STUDIORACK', // shows on the customer's bank statement
       metadata: {
         studioName,
         bookingDate,
