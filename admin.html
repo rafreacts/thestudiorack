@@ -390,6 +390,9 @@
   .badge-rejected { background: var(--red-dim);    color: var(--red); }
   .badge-paid     { background: var(--green-dim);  color: var(--green); }
   .badge-pending-pay { background: var(--yellow-dim); color: var(--yellow); }
+  .badge-refunded { background: var(--red-dim); color: var(--red); text-transform: capitalize; }
+  .btn-refund { background: transparent; border: 1px solid var(--red); color: var(--red); border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-refund:hover { background: var(--red); color: #fff; }
 
   /* ACTION BUTTONS */
   .action-btns {
@@ -856,6 +859,10 @@
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtra293cnRqdW5vcmxxbXlnb3J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTk5NDgsImV4cCI6MjA5NjEzNTk0OH0.fnhfa4NDceaTxIZVNbwTR1rPO9Jj0-DlIgVE2FDeG1M';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
+  // ⚠️ ADMIN ACCESS — only this email can use the admin panel.
+  // Make sure this is the exact email you log into the admin panel with.
+  const ADMIN_EMAIL = 'raphaelvp2015@gmail.com';
+
   let adminUser = null;
   let currentPanelStudio = null;
 
@@ -863,6 +870,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
     const { data: { session } } = await sb.auth.getSession();
     if (session?.user) {
+      if (session.user.email !== ADMIN_EMAIL) { await sb.auth.signOut(); return; }
       adminUser = session.user;
       showAdmin();
     }
@@ -877,6 +885,11 @@
 
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) { err.textContent = error.message; return; }
+    if (data.user.email !== ADMIN_EMAIL) {
+      await sb.auth.signOut();
+      err.textContent = 'This account is not authorised to access the admin panel.';
+      return;
+    }
     adminUser = data.user;
     showAdmin();
   }
@@ -1060,10 +1073,15 @@
             <th>Hours</th>
             <th>Total</th>
             <th>Payment</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          ${list.map(b => `
+          ${list.map(b => {
+            const ps = b.payment_status || 'pending';
+            const isRefunded = ps === 'refunded' || ps === 'partially_refunded';
+            const badgeClass = ps === 'paid' ? 'badge-paid' : (isRefunded ? 'badge-refunded' : 'badge-pending');
+            return `
             <tr>
               <td>
                 <div class="studio-name">${b.studios?.name || 'Studio'}</div>
@@ -1072,11 +1090,23 @@
               <td style="color:var(--text-muted);font-size:12px;">${new Date(b.created_at).toLocaleDateString('en-GB')}</td>
               <td>${b.hours} hr${b.hours > 1 ? 's' : ''}</td>
               <td style="font-weight:600;color:var(--accent);">£${b.total_price}</td>
-              <td><span class="badge ${b.payment_status === 'paid' ? 'badge-paid' : 'badge-pending'}">${b.payment_status || 'pending'}</span></td>
-            </tr>
-          `).join('')}
+              <td><span class="badge ${badgeClass}">${ps.replace('_', ' ')}</span></td>
+              <td>${ps === 'paid' ? `<button class="btn-refund" onclick="markRefunded('${b.id}')">Mark refunded</button>` : ''}</td>
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>`;
+  }
+
+  // Manual fallback: mark a booking refunded (the webhook does this automatically
+  // when you refund in Stripe; this is here in case you ever need to set it by hand)
+  async function markRefunded(bookingId) {
+    if (!confirm('Mark this booking as refunded? Do this only after you have issued the refund in Stripe. It will remove the booking from payouts.')) return;
+    const { error } = await sb.from('bookings')
+      .update({ payment_status: 'refunded', status: 'cancelled' })
+      .eq('id', bookingId);
+    if (error) { alert('Error: ' + error.message); return; }
+    loadBookings();
   }
 
   // ── Payouts ──────────────────────────────────────────────────────
