@@ -210,6 +210,44 @@
       </div>
       <div id="my-bookings"><div class="loading">Loading…</div></div>
     </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Blocked / unavailable times</h2>
+        <button class="btn-primary" style="width:auto;padding:8px 16px;" onclick="openBlockForm()">+ Block a time</button>
+      </div>
+      <div style="padding:0 24px 8px;color:var(--text-muted);font-size:13px;">Block out dates and times you're already booked (e.g. from Instagram or walk-ins) or closed, so no one can book them here.</div>
+      <div id="my-blocks" style="padding:8px 0;"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCK TIME MODAL -->
+<div class="modal-overlay" id="block-modal">
+  <div class="modal">
+    <h2>Block out a time</h2>
+    <p class="sub">No one will be able to book this studio during this slot.</p>
+    <div class="form-group" id="block-studio-group">
+      <label>Studio</label>
+      <select id="block-studio"></select>
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="block-date">
+    </div>
+    <div class="form-row" style="display:flex;gap:12px;">
+      <div class="form-group" style="flex:1;">
+        <label>Start time</label>
+        <input type="time" id="block-start" value="09:00">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>Hours</label>
+        <input type="number" id="block-hours" min="1" max="24" value="8">
+      </div>
+    </div>
+    <p class="msg" id="block-msg" style="text-align:left;"></p>
+    <button class="btn-primary" onclick="saveBlock()">Block this time</button>
+    <button class="btn-secondary" onclick="closeBlockForm()">Cancel</button>
   </div>
 </div>
 
@@ -426,18 +464,23 @@
       bookings = (b || []).map(bk => ({ ...bk, studios: studioMap[bk.studio_id] || null }));
     }
 
-    // Stats
-    const earnings = bookings.filter(b => b.payment_status === 'paid').reduce((s, b) => s + Math.round((b.total_price || 0) * 0.9), 0);
+    // Separate real bookings from the host's own blocked-out times
+    const realBookings = bookings.filter(b => b.status !== 'blocked');
+    const blocks       = bookings.filter(b => b.status === 'blocked');
+
+    // Stats (real bookings only)
+    const earnings = realBookings.filter(b => b.payment_status === 'paid').reduce((s, b) => s + Math.round((b.total_price || 0) * 0.9), 0);
     const today = new Date().toISOString().split('T')[0];
-    const upcoming = bookings.filter(b => b.booking_date >= today).length;
+    const upcoming = realBookings.filter(b => b.booking_date >= today && b.status === 'confirmed').length;
 
     document.getElementById('stat-studios').textContent  = myStudios.length;
-    document.getElementById('stat-bookings').textContent = bookings.length;
+    document.getElementById('stat-bookings').textContent = realBookings.length;
     document.getElementById('stat-earnings').textContent = '£' + earnings.toLocaleString();
     document.getElementById('stat-upcoming').textContent = upcoming;
 
     renderStudios(myStudios);
-    renderBookings(bookings);
+    renderBookings(realBookings);
+    renderBlocks(blocks);
   }
 
   function renderStudios(list) {
@@ -494,33 +537,103 @@
     </tbody></table>`;
   }
 
+  const SERVER = 'https://friendly-joy-production-6ab1.up.railway.app';
+
   async function approveBooking(id) {
-    if (!confirm('Accept this booking? The photographer will be told it is confirmed.')) return;
-    const { error } = await sb.from('bookings').update({ status: 'confirmed' }).eq('id', id);
-    if (error) { showToast('Error: ' + error.message); return; }
-    notifyBookingStatus(id, 'confirmed');
-    showToast('✅ Booking confirmed — photographer notified');
-    loadDashboard();
+    if (!confirm('Accept this booking? The photographer\'s card will be charged and they\'ll be told it is confirmed.')) return;
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token;
+    showToast('Confirming…');
+    try {
+      const res = await fetch(SERVER + '/accept-booking', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: id, token })
+      });
+      const result = await res.json();
+      if (result.error) { showToast('Error: ' + result.error); return; }
+      showToast('✅ Booking confirmed — photographer charged & notified');
+      loadDashboard();
+    } catch (e) { showToast('Error: ' + e.message); }
   }
 
   async function declineBooking(id) {
-    if (!confirm('Decline this booking? The photographer will be notified and refunded.')) return;
-    const { error } = await sb.from('bookings').update({ status: 'declined' }).eq('id', id);
-    if (error) { showToast('Error: ' + error.message); return; }
-    notifyBookingStatus(id, 'declined');
-    showToast('Booking declined — photographer notified');
+    if (!confirm('Decline this booking? The hold on the photographer\'s card is released — they are not charged.')) return;
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token;
+    showToast('Declining…');
+    try {
+      const res = await fetch(SERVER + '/decline-booking', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: id, token })
+      });
+      const result = await res.json();
+      if (result.error) { showToast('Error: ' + result.error); return; }
+      showToast('Booking declined — photographer notified, no charge taken');
+      loadDashboard();
+    } catch (e) { showToast('Error: ' + e.message); }
+  }
+
+  // ── Host availability blocking ──
+  function renderBlocks(list) {
+    const el = document.getElementById('my-blocks');
+    if (!list.length) {
+      el.innerHTML = `<div style="padding:8px 24px 16px;color:var(--text-muted);font-size:13px;">No blocked times. Your studios are bookable at all times unless you block some out.</div>`;
+      return;
+    }
+    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Date</th><th>Time</th><th></th></tr></thead><tbody>
+      ${list.map(b => `<tr>
+        <td><div class="s-name">${b.studios?.name || 'Studio'}</div></td>
+        <td>${b.booking_date}</td>
+        <td>${b.start_time || ''} · ${b.hours} hr${b.hours > 1 ? 's' : ''}</td>
+        <td><button class="btn-decline" onclick="removeBlock('${b.id}')">Remove</button></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  function openBlockForm() {
+    if (!myStudios.length) { showToast('Add a studio first'); return; }
+    const sel = document.getElementById('block-studio');
+    sel.innerHTML = myStudios.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    // Hide the studio picker if there's only one
+    document.getElementById('block-studio-group').style.display = myStudios.length > 1 ? 'block' : 'none';
+    document.getElementById('block-msg').textContent = '';
+    document.getElementById('block-modal').classList.add('active');
+  }
+  function closeBlockForm() { document.getElementById('block-modal').classList.remove('active'); }
+
+  async function saveBlock() {
+    const studioId = document.getElementById('block-studio').value || (myStudios[0] && myStudios[0].id);
+    const date  = document.getElementById('block-date').value;
+    const start = document.getElementById('block-start').value;
+    const hours = parseInt(document.getElementById('block-hours').value);
+    const msg = document.getElementById('block-msg');
+    if (!studioId) { msg.textContent = 'Please choose a studio.'; return; }
+    if (!date)  { msg.textContent = 'Please choose a date.'; return; }
+    if (!start) { msg.textContent = 'Please choose a start time.'; return; }
+    if (!hours || isNaN(hours) || hours < 1) { msg.textContent = 'Please enter how many hours.'; return; }
+    msg.textContent = 'Saving…';
+    const { error } = await sb.from('bookings').insert({
+      studio_id: studioId,
+      photographer_id: host.id,   // the host's own id — allowed by the insert policy
+      booking_date: date,
+      start_time: start,
+      hours,
+      total_price: 0,
+      status: 'blocked',
+      payment_status: 'blocked'
+    });
+    if (error) { msg.textContent = 'Error: ' + error.message; return; }
+    closeBlockForm();
+    showToast('✅ Time blocked');
     loadDashboard();
   }
 
-  // Ask the server to email the photographer (server looks up their email securely)
-  function notifyBookingStatus(bookingId, status) {
-    try {
-      fetch('https://friendly-joy-production-6ab1.up.railway.app/booking-status-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId, status })
-      });
-    } catch (e) { /* non-blocking */ }
+  async function removeBlock(id) {
+    if (!confirm('Remove this block? The time will become bookable again.')) return;
+    const { error } = await sb.from('bookings').update({ status: 'cancelled' }).eq('id', id);
+    if (error) { showToast('Error: ' + error.message); return; }
+    showToast('Block removed');
+    loadDashboard();
   }
 
   // Add / edit studio
