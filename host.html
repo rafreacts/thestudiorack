@@ -84,6 +84,11 @@
   .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; }
   .badge-live { background: var(--green-dim); color: var(--green); }
   .badge-pending { background: var(--yellow-dim); color: var(--yellow); }
+  .badge-declined { background: #fdecec; color: #c0392b; }
+  .btn-approve { background: var(--green, #1a7f4b); color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-approve:hover { opacity: 0.9; }
+  .btn-decline { background: #fff; color: #c0392b; border: 1px solid #e3b3b0; border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-decline:hover { background: #fdecec; }
   .badge-paid { background: var(--green-dim); color: var(--green); }
 
   .empty { padding: 50px 24px; text-align: center; color: var(--text-muted); }
@@ -415,8 +420,10 @@
     // Load bookings for those studios
     let bookings = [];
     if (studioIds.length) {
-      const { data: b } = await sb.from('bookings').select('*, studios(name)').in('studio_id', studioIds).order('booking_date', { ascending: false });
-      bookings = b || [];
+      const { data: b } = await sb.from('bookings').select('*').in('studio_id', studioIds).order('booking_date', { ascending: false });
+      const studioMap = {};
+      myStudios.forEach(s => { studioMap[s.id] = { name: s.name }; });
+      bookings = (b || []).map(bk => ({ ...bk, studios: studioMap[bk.studio_id] || null }));
     }
 
     // Stats
@@ -453,21 +460,67 @@
   function renderBookings(list) {
     const el = document.getElementById('my-bookings');
     if (!list.length) {
-      el.innerHTML = `<div class="empty"><div class="icon">📅</div><p>No bookings yet. Once photographers book your studios they'll appear here.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="icon">📅</div><p>No bookings yet. Once photographers request your studios they'll appear here.</p></div>`;
       return;
     }
-    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Date</th><th>Hours</th><th>Your Earnings</th><th>Status</th></tr></thead><tbody>
+    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Date</th><th>Hours</th><th>Your Earnings</th><th>Status</th><th></th></tr></thead><tbody>
       ${list.map(b => {
         const owner = Math.round((b.total_price || 0) * 0.9);
+        const s = b.status || 'pending';
+        let badge, actions = '';
+        if (s === 'pending') {
+          badge = '<span class="badge badge-pending">⏳ Needs your response</span>';
+          actions = `<button class="btn-approve" onclick="approveBooking('${b.id}')">Accept</button> <button class="btn-decline" onclick="declineBooking('${b.id}')">Decline</button>`;
+        } else if (s === 'confirmed') {
+          badge = '<span class="badge badge-live">✓ Confirmed</span>';
+        } else if (s === 'owner_paid') {
+          badge = '<span class="badge badge-live">✓ Paid out</span>';
+        } else if (s === 'declined') {
+          badge = '<span class="badge badge-declined">Declined</span>';
+        } else if (s === 'cancelled' || s === 'refunded') {
+          badge = '<span class="badge badge-declined">Refunded</span>';
+        } else {
+          badge = `<span class="badge badge-pending">${s}</span>`;
+        }
         return `<tr>
           <td><div class="s-name">${b.studios?.name || 'Studio'}</div><div class="s-loc">${b.start_time || ''}</div></td>
           <td>${b.booking_date}</td>
           <td>${b.hours} hr${b.hours > 1 ? 's' : ''}</td>
           <td style="font-weight:600;color:var(--green);">£${owner}</td>
-          <td><span class="badge ${b.status === 'owner_paid' ? 'badge-paid' : 'badge-pending'}">${b.status === 'owner_paid' ? '✓ Paid out' : 'Awaiting payout'}</span></td>
+          <td>${badge}</td>
+          <td>${actions}</td>
         </tr>`;
       }).join('')}
     </tbody></table>`;
+  }
+
+  async function approveBooking(id) {
+    if (!confirm('Accept this booking? The photographer will be told it is confirmed.')) return;
+    const { error } = await sb.from('bookings').update({ status: 'confirmed' }).eq('id', id);
+    if (error) { showToast('Error: ' + error.message); return; }
+    notifyBookingStatus(id, 'confirmed');
+    showToast('✅ Booking confirmed — photographer notified');
+    loadDashboard();
+  }
+
+  async function declineBooking(id) {
+    if (!confirm('Decline this booking? The photographer will be notified and refunded.')) return;
+    const { error } = await sb.from('bookings').update({ status: 'declined' }).eq('id', id);
+    if (error) { showToast('Error: ' + error.message); return; }
+    notifyBookingStatus(id, 'declined');
+    showToast('Booking declined — photographer notified');
+    loadDashboard();
+  }
+
+  // Ask the server to email the photographer (server looks up their email securely)
+  function notifyBookingStatus(bookingId, status) {
+    try {
+      fetch('https://friendly-joy-production-6ab1.up.railway.app/booking-status-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, status })
+      });
+    } catch (e) { /* non-blocking */ }
   }
 
   // Add / edit studio
