@@ -1803,11 +1803,11 @@
 <!-- SUCCESS MODAL -->
 <div class="modal-overlay" id="success-modal">
   <div class="payment-modal" style="text-align:center;">
-    <div style="font-size:64px;margin-bottom:20px;">🎉</div>
-    <h2>Booking Confirmed!</h2>
-    <p style="margin-bottom:20px;">Your studio is booked. A confirmation has been sent to your email with all the details.</p>
+    <div style="font-size:64px;margin-bottom:20px;">📩</div>
+    <h2>Booking request sent!</h2>
+    <p style="margin-bottom:20px;">Your request has been sent to the studio owner to confirm. You'll get an email as soon as they accept. If they can't make the time work, you'll be refunded in full.</p>
     <div style="background:#f4f2ee;border-radius:12px;padding:16px;margin-bottom:24px;text-align:left;font-size:13px;line-height:1.6;color:var(--text);">
-      <strong>📸 Quick tip:</strong> when you arrive, take a few photos of the studio and equipment before you start. It only takes a minute and protects both you and the studio if any question about damage comes up later.
+      <strong>📸 Quick tip:</strong> once your booking is confirmed, take a few photos of the studio and equipment before you start. It only takes a minute and protects both you and the studio if any question about damage comes up later.
     </div>
     <button class="btn-book" onclick="closeModal('success-modal')">Done</button>
   </div>
@@ -2614,6 +2614,26 @@
       return;
     }
 
+    // Check the slot isn't already taken (by another booking or a host-blocked time)
+    const startHour = parseTimeToHour(time);
+    const endHour   = startHour + hours;
+    try {
+      const { data: existing } = await sb.from('bookings')
+        .select('start_time, hours, status')
+        .eq('studio_id', currentStudio.id)
+        .eq('booking_date', date)
+        .in('status', ['pending', 'confirmed', 'blocked']);
+      const clash = (existing || []).some(b => {
+        const bStart = parseTimeToHour(b.start_time);
+        const bEnd   = bStart + (b.hours || 0);
+        return startHour < bEnd && bStart < endHour; // time ranges overlap
+      });
+      if (clash) {
+        errEl.textContent = 'Sorry — that time has just been taken for this studio. Please pick a different time or date.';
+        return;
+      }
+    } catch (e) { /* if the check can't run, host approval is the backstop */ }
+
     payBtn.textContent = 'Processing…';
     payBtn.disabled = true;
 
@@ -2638,7 +2658,7 @@
       });
       if (stripeError) throw new Error(stripeError.message);
 
-      // 3. Save booking to Supabase
+      // 3. Save booking as a REQUEST — the studio owner confirms it
       await sb.from('bookings').insert({
         studio_id:        currentStudio.id || null,
         photographer_id:  currentUser.id,
@@ -2646,7 +2666,7 @@
         start_time:       time,
         hours,
         total_price:      total,
-        status:           'confirmed',
+        status:           'pending',
         payment_status:   'paid',
         stripe_payment_id: paymentIntent.id
       });
