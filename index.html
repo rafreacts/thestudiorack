@@ -2591,20 +2591,31 @@
   }
 
   async function confirmBooking() {
-    if (!currentUser || !currentStudio) return;
-    const hours    = parseInt(document.getElementById('book-hours').value);
-    const date     = document.getElementById('book-date').value;
-    const time     = document.getElementById('book-time').value;
-    const { rate }  = getActiveRate();
-    const subtotal = rate * hours;
-    const fee      = Math.round(subtotal * 0.1);
-    const total    = subtotal + fee;
     const payBtn   = document.getElementById('pay-btn');
     const errEl    = document.getElementById('stripe-error');
+    errEl.textContent = '';
+
+    if (!currentUser)   { errEl.textContent = 'Please sign in before paying.'; return; }
+    if (!currentStudio) { errEl.textContent = 'Something went wrong — please close this and reopen the studio.'; return; }
+
+    const hours = parseInt(document.getElementById('book-hours').value);
+    const date  = document.getElementById('book-date').value;
+    const time  = document.getElementById('book-time').value;
+    if (!date) { errEl.textContent = 'Please choose a date.'; return; }
+    if (!time) { errEl.textContent = 'Please choose a start time.'; return; }
+    if (!hours || isNaN(hours) || hours < 1) { errEl.textContent = 'Please choose how many hours.'; return; }
+
+    const { rate } = getActiveRate();
+    const subtotal = Number(rate) * hours;
+    const fee      = Math.round(subtotal * 0.1);
+    const total    = subtotal + fee;
+    if (!total || isNaN(total) || total < 1) {
+      errEl.textContent = 'Couldn’t work out the price for this studio. Please close this and reopen the studio, then try again.';
+      return;
+    }
 
     payBtn.textContent = 'Processing…';
     payBtn.disabled = true;
-    errEl.textContent = '';
 
     try {
       // 1. Create payment intent on server
