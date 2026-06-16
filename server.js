@@ -43,16 +43,43 @@ function bookingConfirmationEmail({ studioName, bookingDate, startTime, hours, t
 function hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, total, ownerPayout }) {
   return `
   <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
-    <h1 style="font-size:22px;color:#0a0a0a;">You've got a new booking!</h1>
-    <p style="color:#555;line-height:1.6;">Someone just booked your studio on StudioRack.</p>
+    <h1 style="font-size:22px;color:#0a0a0a;">New booking request</h1>
+    <p style="color:#555;line-height:1.6;">A photographer wants to book your studio on StudioRack. Please accept or decline it in your dashboard.</p>
     <div style="background:#f7f5f2;border-radius:12px;padding:20px;margin:20px 0;">
       <p style="margin:6px 0;"><strong>Studio:</strong> ${studioName}</p>
       <p style="margin:6px 0;"><strong>Date:</strong> ${bookingDate}</p>
       <p style="margin:6px 0;"><strong>Start time:</strong> ${startTime}</p>
       <p style="margin:6px 0;"><strong>Duration:</strong> ${hours} hour(s)</p>
-      <p style="margin:6px 0;"><strong>Your earnings (90%):</strong> &pound;${ownerPayout}</p>
+      <p style="margin:6px 0;"><strong>Your earnings (90%) if you accept:</strong> &pound;${ownerPayout}</p>
     </div>
-    <p style="color:#555;line-height:1.6;">Your payout will be sent within 48 hours of the rental date. Make sure your studio is ready for the booking.</p>
+    <p style="color:#555;line-height:1.6;"><a href="https://thestudiorack.com/host.html" style="color:#0a0a0a;font-weight:600;">Open your dashboard</a> to accept or decline. Please respond promptly — the photographer is waiting and has already paid (they're refunded if you decline).</p>
+    <p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p>
+  </div>`;
+}
+
+function bookingDeclinedEmail({ studioName, bookingDate, startTime, hours }) {
+  return `
+  <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
+    <h1 style="font-size:22px;color:#0a0a0a;">Your booking request couldn't be confirmed</h1>
+    <p style="color:#555;line-height:1.6;">Unfortunately the studio owner wasn't able to confirm your request for <strong>${studioName}</strong> on ${bookingDate} at ${startTime} (${hours} hour(s)).</p>
+    <p style="color:#555;line-height:1.6;">You'll be refunded in full. Feel free to browse other studios or try a different time.</p>
+    <p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p>
+  </div>`;
+}
+
+function bookingRequestReceivedEmail({ studioName, bookingDate, startTime, hours, total }) {
+  return `
+  <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
+    <h1 style="font-size:22px;color:#0a0a0a;">Your booking request has been sent</h1>
+    <p style="color:#555;line-height:1.6;">Thanks for booking with StudioRack. Your request has been sent to the studio owner to confirm — we'll email you the moment they accept.</p>
+    <div style="background:#f7f5f2;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:6px 0;"><strong>Studio:</strong> ${studioName}</p>
+      <p style="margin:6px 0;"><strong>Date:</strong> ${bookingDate}</p>
+      <p style="margin:6px 0;"><strong>Start time:</strong> ${startTime}</p>
+      <p style="margin:6px 0;"><strong>Duration:</strong> ${hours} hour(s)</p>
+      <p style="margin:6px 0;"><strong>Total paid:</strong> &pound;${total}</p>
+    </div>
+    <p style="color:#555;line-height:1.6;">If the owner can't confirm your time, you'll be refunded in full. No action needed from you for now.</p>
     <p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p>
   </div>`;
 }
@@ -64,13 +91,13 @@ app.post('/send-booking-emails', async (req, res) => {
     const ownerPayout = Math.round((total || 0) * 0.9);
     const results = {};
 
-    // Confirmation to photographer
+    // "Request received" note to photographer (booking is pending until the owner accepts)
     if (photographerEmail) {
       const r = await resend.emails.send({
         from: FROM,
         to: photographerEmail,
-        subject: `Booking confirmed - ${studioName}`,
-        html: bookingConfirmationEmail({ studioName, bookingDate, startTime, hours, total })
+        subject: `Booking request sent - ${studioName}`,
+        html: bookingRequestReceivedEmail({ studioName, bookingDate, startTime, hours, total })
       });
       results.photographer = r.error ? r.error.message : 'sent';
     }
@@ -94,7 +121,7 @@ app.post('/send-booking-emails', async (req, res) => {
             const r = await resend.emails.send({
               from: FROM,
               to: hostEmail,
-              subject: `New booking for ${studioName}`,
+              subject: `New booking request for ${studioName}`,
               html: hostBookingAlertEmail({ studioName, bookingDate, startTime, hours, total, ownerPayout })
             });
             results.host = r.error ? r.error.message : 'sent';
@@ -109,6 +136,58 @@ app.post('/send-booking-emails', async (req, res) => {
     res.json({ success: true, results });
   } catch (error) {
     console.error('Email send error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Email the photographer when a host accepts or declines their request
+app.post('/booking-status-email', async (req, res) => {
+  try {
+    const { bookingId, status } = req.body;
+    if (!bookingId || !status) return res.status(400).json({ error: 'Missing data' });
+
+    const { data: booking } = await sbAdmin
+      .from('bookings')
+      .select('studio_id, photographer_id, booking_date, start_time, hours, total_price')
+      .eq('id', bookingId)
+      .single();
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    let studioName = 'your studio';
+    const { data: studio } = await sbAdmin.from('studios').select('name').eq('id', booking.studio_id).single();
+    if (studio && studio.name) studioName = studio.name;
+
+    const { data: userData } = await sbAdmin.auth.admin.getUserById(booking.photographer_id);
+    const email = userData?.user?.email;
+    if (!email) return res.status(404).json({ error: 'Photographer email not found' });
+
+    const details = {
+      studioName,
+      bookingDate: booking.booking_date,
+      startTime: booking.start_time,
+      hours: booking.hours,
+      total: booking.total_price
+    };
+
+    if (status === 'confirmed') {
+      await resend.emails.send({
+        from: FROM,
+        to: email,
+        subject: `Booking confirmed - ${studioName}`,
+        html: bookingConfirmationEmail(details)
+      });
+    } else if (status === 'declined') {
+      await resend.emails.send({
+        from: FROM,
+        to: email,
+        subject: `Booking request update - ${studioName}`,
+        html: bookingDeclinedEmail(details)
+      });
+    }
+
+    res.json({ sent: true });
+  } catch (error) {
+    console.error('Status email error:', error);
     res.status(500).json({ error: error.message });
   }
 });
