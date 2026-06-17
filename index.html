@@ -399,6 +399,9 @@
   .map-pop .mp-loc { font-size: 12px; color: #6b6b6b; margin: 2px 0 4px; }
   .map-pop .mp-price { font-size: 13px; color: #1a1a1a; }
   .map-pop button { margin-top: 8px; width: 100%; border: none; background: var(--accent); color: #1a1a1a; font-weight: 600; padding: 7px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; }
+  .price-pin-inner { background: #fff; border: 1px solid rgba(0,0,0,0.12); border-radius: 999px; padding: 5px 11px; font-weight: 700; font-size: 13px; color: #1a1a1a; box-shadow: 0 1px 5px rgba(0,0,0,0.25); white-space: nowrap; text-align: center; transition: all 0.12s ease; cursor: pointer; }
+  .price-pin-inner:hover { background: #1a1a1a; color: #fff; transform: scale(1.06); }
+  .leaflet-popup-content-wrapper { border-radius: 14px; }
 
   .studio-grid {
     display: grid;
@@ -2297,7 +2300,10 @@
     if (typeof L === 'undefined') return; // map library failed to load
     if (!leafletMap) {
       leafletMap = L.map('studio-map').setView([51.5074, -0.1278], 11);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(leafletMap);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 20, subdomains: 'abcd',
+        attribution: '&copy; OpenStreetMap, &copy; CARTO'
+      }).addTo(leafletMap);
       mapMarkers = L.layerGroup().addTo(leafletMap);
     }
     setTimeout(() => leafletMap.invalidateSize(), 80);
@@ -2311,7 +2317,13 @@
       const photo = (s.photos && s.photos.split(',').filter(Boolean)[0]) || '';
       const loc = [s.area, s.city].filter(Boolean).join(', ') || s.location || '';
       const price = effectivePrice(s);
-      const m = L.marker([lat, lng]).addTo(mapMarkers);
+      const pin = L.divIcon({
+        className: 'price-pin',
+        html: `<div class="price-pin-inner">£${price}</div>`,
+        iconSize: [44, 28],
+        iconAnchor: [22, 14]
+      });
+      const m = L.marker([lat, lng], { icon: pin }).addTo(mapMarkers);
       m.bindPopup(`<div class="map-pop">${photo ? `<img src="${photo}">` : ''}<div class="mp-name">${s.name || 'Studio'}</div><div class="mp-loc">📍 ${loc}</div><div class="mp-price">£${price}/hr</div><button onclick="openStudioById('${s.id}')">View details</button></div>`);
       bounds.push([lat, lng]);
     });
