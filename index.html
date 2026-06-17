@@ -6,6 +6,8 @@
 <title>StudioRack — Find & Book Photography Studios</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root {
     --black: #0a0a0a;
@@ -387,6 +389,16 @@
   }
 
   .section-header a:hover { color: var(--text); }
+
+  .view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; background: #fff; }
+  .view-btn { border: none; background: transparent; padding: 8px 16px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+  .view-btn.active { background: var(--text); color: #fff; }
+  .map-pop { font-family: 'DM Sans', sans-serif; width: 190px; }
+  .map-pop img { width: 100%; height: 96px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 6px; background:#eee; }
+  .map-pop .mp-name { font-weight: 600; font-size: 14px; color: #1a1a1a; }
+  .map-pop .mp-loc { font-size: 12px; color: #6b6b6b; margin: 2px 0 4px; }
+  .map-pop .mp-price { font-size: 13px; color: #1a1a1a; }
+  .map-pop button { margin-top: 8px; width: 100%; border: none; background: var(--accent); color: #1a1a1a; font-weight: 600; padding: 7px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; }
 
   .studio-grid {
     display: grid;
@@ -1410,8 +1422,12 @@
       <input type="text" id="search-location" placeholder="London, Manchester, Birmingham..." onkeydown="if(event.key==='Enter')runSearch()">
     </div>
     <div class="search-field">
-      <label>Date</label>
-      <input type="date" id="search-date">
+      <label>Dates</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="date" id="search-date-from" style="flex:1;min-width:0;">
+        <span style="color:var(--text-muted);font-size:13px;">–</span>
+        <input type="date" id="search-date-to" style="flex:1;min-width:0;">
+      </div>
     </div>
     <div class="search-field">
       <label>Studio Type</label>
@@ -1484,8 +1500,13 @@
 <section class="studios-section">
   <div class="section-header">
     <h2>Studios near you</h2>
-    <a href="#">View all →</a>
+    <div class="view-toggle">
+      <button id="view-list-btn" class="view-btn active" onclick="setView('list')">☰ List</button>
+      <button id="view-map-btn" class="view-btn" onclick="setView('map')">📍 Map</button>
+    </div>
   </div>
+
+  <div id="studio-map" style="display:none;height:520px;border-radius:16px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px;"></div>
 
   <div class="studio-grid" id="studio-grid">
 
@@ -1934,8 +1955,11 @@
   // ── Boot ─────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', async () => {
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('search-date') && (document.getElementById('search-date').value = today);
-    document.getElementById('book-date')   && (document.getElementById('book-date').value   = today);
+    // Block past dates in the homepage filter
+    ['search-date-from', 'search-date-to'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.min = today;
+    });
 
     // Watch auth state
     sb.auth.onAuthStateChange(async (_event, session) => {
@@ -2178,40 +2202,178 @@
     return s;
   }
 
-  async function loadStudios(typeFilter = '', locationFilter = '') {
+  // ── Geography: London regions + approximate map coordinates ──
+  let currentList = [];
+  let leafletMap = null, mapMarkers = null, mapView = false;
+
+  const REGION_AREAS = {
+    'central london': ['soho','covent garden','fitzrovia','marylebone','mayfair','holborn','clerkenwell','farringdon','bloomsbury','barbican','aldgate','st pauls','temple','strand'],
+    'east london': ['shoreditch','hoxton','hackney','dalston','bethnal green','bow','mile end','stratford','whitechapel','leyton','walthamstow','clapton','homerton','london fields','hackney wick','poplar','canary wharf','wapping','stepney'],
+    'north london': ['camden','islington','angel','kings cross','highbury','holloway','finsbury park','crouch end','muswell hill','tufnell park','archway','kentish town','hampstead','highgate','tottenham','wood green','stoke newington','seven sisters'],
+    'south london': ['brixton','peckham','clapham','bermondsey','greenwich','dulwich','camberwell','streatham','balham','tooting','deptford','new cross','elephant and castle','vauxhall','kennington','stockwell','herne hill','lewisham','catford','crystal palace','battersea','wandsworth','putney','waterloo','london bridge'],
+    'west london': ['notting hill','shepherds bush','hammersmith','fulham','chelsea','kensington','ealing','acton','chiswick','ladbroke grove','white city','earls court','paddington','maida vale','west kensington'],
+  };
+
+  const AREA_COORDS = {
+    soho:[51.5138,-0.1340], 'covent garden':[51.5121,-0.1227], fitzrovia:[51.5189,-0.1370], marylebone:[51.5223,-0.1495], mayfair:[51.5096,-0.1476], holborn:[51.5174,-0.1180], clerkenwell:[51.5240,-0.1050], farringdon:[51.5203,-0.1050], bloomsbury:[51.5223,-0.1267], barbican:[51.5200,-0.0937], aldgate:[51.5143,-0.0755],
+    shoreditch:[51.5265,-0.0789], hoxton:[51.5320,-0.0810], hackney:[51.5450,-0.0553], dalston:[51.5462,-0.0750], 'bethnal green':[51.5270,-0.0550], bow:[51.5270,-0.0170], 'mile end':[51.5250,-0.0330], stratford:[51.5430,-0.0030], whitechapel:[51.5190,-0.0600], 'canary wharf':[51.5050,-0.0235], 'london fields':[51.5410,-0.0610], poplar:[51.5090,-0.0190],
+    camden:[51.5390,-0.1426], islington:[51.5362,-0.1030], 'kings cross':[51.5320,-0.1233], angel:[51.5322,-0.1058], 'finsbury park':[51.5642,-0.1065], highbury:[51.5520,-0.1020], 'kentish town':[51.5500,-0.1400], hampstead:[51.5560,-0.1780], highgate:[51.5710,-0.1450], tottenham:[51.5880,-0.0680], 'stoke newington':[51.5620,-0.0760],
+    brixton:[51.4613,-0.1156], peckham:[51.4740,-0.0690], clapham:[51.4620,-0.1380], bermondsey:[51.4980,-0.0640], greenwich:[51.4810,-0.0050], camberwell:[51.4740,-0.0930], dulwich:[51.4450,-0.0860], streatham:[51.4280,-0.1290], balham:[51.4430,-0.1520], tooting:[51.4270,-0.1680], deptford:[51.4790,-0.0270], 'new cross':[51.4760,-0.0330], 'elephant and castle':[51.4946,-0.1000], vauxhall:[51.4860,-0.1230], kennington:[51.4880,-0.1060], waterloo:[51.5030,-0.1140], 'london bridge':[51.5050,-0.0870], battersea:[51.4700,-0.1700], wandsworth:[51.4570,-0.1910], putney:[51.4610,-0.2160],
+    'notting hill':[51.5090,-0.1960], 'shepherds bush':[51.5050,-0.2260], hammersmith:[51.4920,-0.2230], fulham:[51.4800,-0.1950], chelsea:[51.4870,-0.1690], kensington:[51.5000,-0.1900], ealing:[51.5130,-0.3030], acton:[51.5080,-0.2730], chiswick:[51.4910,-0.2570], paddington:[51.5150,-0.1750], 'maida vale':[51.5300,-0.1860], 'earls court':[51.4910,-0.1940],
+  };
+
+  const CITY_COORDS = {
+    london:[51.5074,-0.1278], manchester:[53.4808,-2.2426], birmingham:[52.4862,-1.8904], leeds:[53.8008,-1.5491], liverpool:[53.4084,-2.9916], bristol:[51.4545,-2.5879], sheffield:[53.3811,-1.4701], glasgow:[55.8642,-4.2518], edinburgh:[55.9533,-3.1883], newcastle:[54.9783,-1.6178], nottingham:[52.9548,-1.1581], leicester:[52.6369,-1.1398], cardiff:[51.4816,-3.1791], brighton:[50.8225,-0.1372], cambridge:[52.2053,0.1218], oxford:[51.7520,-1.2577],
+  };
+
+  function normalizeLoc(s) { return (s || '').toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim(); }
+
+  function detectRegionAreas(term) {
+    const t = normalizeLoc(term);
+    if (!t.includes('london')) return null;
+    let key = null;
+    if (t.includes('central')) key = 'central london';
+    else if (t.includes('north')) key = 'north london';
+    else if (t.includes('south')) key = 'south london';
+    else if (t.includes('east')) key = 'east london';
+    else if (t.includes('west')) key = 'west london';
+    return key ? REGION_AREAS[key] : null;
+  }
+
+  function matchesLocation(s, term) {
+    if (!term) return true;
+    const hay = normalizeLoc([s.area, s.city, s.location].filter(Boolean).join(' '));
+    const regionAreas = detectRegionAreas(term);
+    if (regionAreas) return regionAreas.some(a => hay.includes(a));
+    return hay.includes(normalizeLoc(term));
+  }
+
+  function coordsForStudio(s) {
+    const area = normalizeLoc(s.area);
+    if (area && AREA_COORDS[area]) return AREA_COORDS[area];
+    const hay = normalizeLoc([s.area, s.location].filter(Boolean).join(' '));
+    for (const a in AREA_COORDS) { if (hay.includes(a)) return AREA_COORDS[a]; }
+    const city = normalizeLoc(s.city);
+    for (const c in CITY_COORDS) { if (city.includes(c)) return CITY_COORDS[c]; }
+    if (hay.includes('london')) return CITY_COORDS.london;
+    return null;
+  }
+
+  // ── Map view ──
+  function setView(mode) {
+    mapView = (mode === 'map');
+    document.getElementById('view-list-btn').classList.toggle('active', !mapView);
+    document.getElementById('view-map-btn').classList.toggle('active', mapView);
+    document.getElementById('studio-grid').style.display = mapView ? 'none' : '';
+    document.getElementById('studio-map').style.display = mapView ? 'block' : 'none';
+    if (mapView) renderMap();
+  }
+
+  function renderMap() {
+    if (typeof L === 'undefined') return; // map library failed to load
+    if (!leafletMap) {
+      leafletMap = L.map('studio-map').setView([51.5074, -0.1278], 11);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(leafletMap);
+      mapMarkers = L.layerGroup().addTo(leafletMap);
+    }
+    setTimeout(() => leafletMap.invalidateSize(), 80);
+    mapMarkers.clearLayers();
+    const bounds = [];
+    (currentList || []).forEach(s => {
+      const c = coordsForStudio(s);
+      if (!c) return;
+      const lat = c[0] + (Math.random() - 0.5) * 0.004; // small jitter so same-area pins don't stack
+      const lng = c[1] + (Math.random() - 0.5) * 0.004;
+      const photo = (s.photos && s.photos.split(',').filter(Boolean)[0]) || '';
+      const loc = [s.area, s.city].filter(Boolean).join(', ') || s.location || '';
+      const price = effectivePrice(s);
+      const m = L.marker([lat, lng]).addTo(mapMarkers);
+      m.bindPopup(`<div class="map-pop">${photo ? `<img src="${photo}">` : ''}<div class="mp-name">${s.name || 'Studio'}</div><div class="mp-loc">📍 ${loc}</div><div class="mp-price">£${price}/hr</div><button onclick="openStudioById('${s.id}')">View details</button></div>`);
+      bounds.push([lat, lng]);
+    });
+    if (bounds.length) leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+  }
+
+  function openStudioById(id) {
+    const s = (currentList || []).find(x => String(x.id) === String(id)) || (baseList || []).find(x => String(x.id) === String(id));
+    if (s) openStudio(s);
+  }
+
+  async function loadStudios(typeFilter = '', locationFilter = '', fromDate = '', toDate = '') {
     currentType = typeFilter;
     currentLocation = locationFilter;
     const grid = document.getElementById('studio-grid');
     grid.innerHTML = '<p style="color:var(--text-muted);padding:24px;">Loading studios…</p>';
 
+    // Fetch approved studios (filter by type at the DB; location is matched in JS so we can understand regions)
     let query = sb.from('studios').select('*').eq('is_approved', true);
     if (typeFilter && typeFilter !== 'All Studios') {
       query = query.eq('studio_type', typeFilter);
     }
-    if (locationFilter) {
-      query = query.ilike('city', `%${locationFilter}%`);
-    }
 
     const { data, error } = await query;
 
-    // If DB errors or is empty, fall back to demo studios (filtered too)
+    let list;
     if (error || !data || data.length === 0) {
       let demo = demoStudios.slice();
       if (typeFilter && typeFilter !== 'All Studios') {
         demo = demo.filter(s => s.studio_type === typeFilter);
       }
-      if (locationFilter) {
-        demo = demo.filter(s => (s.city || '').toLowerCase().includes(locationFilter.toLowerCase()) || (s.location || '').toLowerCase().includes(locationFilter.toLowerCase()));
-      }
-      baseList = demo;
+      list = demo;
       baseIsDemo = true;
     } else {
       data.forEach(normalizeOffpeak);
       allStudios = data;
-      baseList = data;
+      list = data;
       baseIsDemo = false;
     }
+
+    // Location filter — understands London regions ("South London" → Brixton, Peckham, …)
+    if (locationFilter) {
+      list = list.filter(s => matchesLocation(s, locationFilter));
+    }
+    baseList = list;
+
+    // If the user chose a date (or range), keep only studios with availability in that window
+    if (fromDate) {
+      baseList = await filterStudiosByAvailability(baseList, fromDate, toDate || fromDate);
+    }
+
     renderFiltered();
+  }
+
+  // Keep studios that have at least one free start-time on at least one day in the range
+  async function filterStudiosByAvailability(studios, fromDate, toDate) {
+    if (!fromDate || !studios.length) return studios;
+    const dates = [];
+    let d = new Date(fromDate + 'T00:00:00');
+    const end = new Date(toDate + 'T00:00:00');
+    let guard = 0;
+    while (d <= end && guard < 120) { dates.push(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1); guard++; }
+    const ids = studios.map(s => s.id);
+    let bks = [];
+    try {
+      const { data } = await sb.from('bookings')
+        .select('studio_id, booking_date, start_time, hours, status')
+        .in('studio_id', ids)
+        .in('status', ['pending', 'confirmed', 'blocked'])
+        .gte('booking_date', fromDate)
+        .lte('booking_date', toDate);
+      bks = data || [];
+    } catch (e) { return studios; }
+    const taken = {};
+    bks.forEach(b => {
+      const st = parseTimeToHour(b.start_time);
+      if (st == null) return;
+      const key = b.studio_id + '|' + b.booking_date;
+      (taken[key] = taken[key] || []).push([st, st + (b.hours || 0)]);
+    });
+    const SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+    const dayFree = (sid, date) => {
+      const r = taken[sid + '|' + date] || [];
+      return SLOTS.some(h => !r.some(([s, e]) => h < e && s < h + 1));
+    };
+    return studios.filter(s => dates.some(date => dayFree(s.id, date)));
   }
 
   // Apply deals filter + price cap + sort to the base list, then render + bind
@@ -2235,10 +2397,13 @@
     const countEl = document.getElementById('result-count');
     if (countEl) countEl.textContent = list.length + (list.length === 1 ? ' studio' : ' studios');
 
+    currentList = list;
+
     if (!list.length) {
       grid.innerHTML = currentDealsOnly
         ? `<div style="padding:60px 24px;text-align:center;color:var(--text-muted);"><div style="font-size:40px;margin-bottom:12px;">⚡</div><p style="font-size:15px;">No off-peak deals available right now.</p><p style="font-size:13px;margin-top:6px;">Check back soon — studios add discounted midweek and daytime slots regularly.</p></div>`
         : renderNoResults();
+      if (mapView) renderMap();
       return;
     }
 
@@ -2251,6 +2416,7 @@
         card.addEventListener('click', e => { e.preventDefault(); openStudio(list[i]); });
       });
     }
+    if (mapView) renderMap();
   }
 
   // ── Controls handlers ──
@@ -2277,17 +2443,22 @@
   function runSearch() {
     const location = document.getElementById('search-location').value.trim();
     const type     = document.getElementById('search-type').value;
+    const fromDate = document.getElementById('search-date-from') ? document.getElementById('search-date-from').value : '';
+    const toDate   = document.getElementById('search-date-to')   ? document.getElementById('search-date-to').value   : '';
     // Sync the filter tabs visually
     document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
     document.querySelector('.filter-tab').classList.add('active');
     // Update the section heading
     const heading = document.querySelector('.studios-section .section-header h2');
-    if (location || type) {
-      heading.textContent = `Studios${type ? ' · ' + type : ''}${location ? ' in ' + location : ''}`;
+    let dateBit = '';
+    if (fromDate && toDate && toDate !== fromDate) dateBit = ` · ${fromDate} to ${toDate}`;
+    else if (fromDate) dateBit = ` · ${fromDate}`;
+    if (location || type || fromDate) {
+      heading.textContent = `Studios${type ? ' · ' + type : ''}${location ? ' in ' + location : ''}${dateBit}`;
     } else {
       heading.textContent = 'Studios near you';
     }
-    loadStudios(type, location);
+    loadStudios(type, location, fromDate, toDate);
     document.getElementById('browse-section').scrollIntoView({ behavior: 'smooth' });
   }
 
@@ -2315,7 +2486,7 @@
           <div class="card-favourite">♡</div>
         </div>
         <div class="card-body">
-          <div class="card-location">📍 ${s.city || s.location}</div>
+          <div class="card-location">📍 ${[s.area, s.city].filter(Boolean).join(', ') || s.location || ''}</div>
           ${dealTag}
           <div class="card-title">${s.name}</div>
           <div class="card-meta">
@@ -2357,7 +2528,7 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="card-location">📍 ${s.city}</div>
+          <div class="card-location">📍 ${[s.area, s.city].filter(Boolean).join(', ') || s.location || ''}</div>
           ${dealTag}
           <div class="card-title">${s.name}</div>
           <div class="card-meta">
@@ -2388,7 +2559,7 @@
     currentStudio = s;
     currentStudioPrice = s.price_per_hour;
     document.getElementById('modal-title').textContent    = s.name;
-    document.getElementById('modal-location').textContent = '📍 ' + (s.city || s.location);
+    document.getElementById('modal-location').textContent = '📍 ' + ([s.area, s.city].filter(Boolean).join(', ') || s.location || '');
     document.getElementById('modal-price').textContent    = '£' + s.price_per_hour;
     document.getElementById('modal-desc').textContent     = s.description || '';
 
