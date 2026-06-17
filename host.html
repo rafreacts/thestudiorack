@@ -279,7 +279,10 @@
     <p class="sub" id="listing-modal-sub">We'll review and have it live within 24 hours.</p>
     <div class="form-group"><label>Studio Name *</label><input type="text" id="l-name" placeholder="e.g. The White Box Studio"></div>
     <div class="form-group"><label>Full Address *</label><input type="text" id="l-location" placeholder="123 Studio St, London E1 6RF"></div>
-    <div class="form-group"><label>City *</label><input type="text" id="l-city" placeholder="London"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Area / Neighbourhood *</label><input type="text" id="l-area" placeholder="e.g. Shoreditch"></div>
+      <div class="form-group"><label>City *</label><input type="text" id="l-city" placeholder="London"></div>
+    </div>
     <div class="form-row">
       <div class="form-group"><label>Size (sq ft) *</label><input type="number" id="l-size" placeholder="800"></div>
       <div class="form-group"><label>Price / hour (£) *</label><input type="number" id="l-price" placeholder="50"></div>
@@ -714,7 +717,7 @@
 
   // Add / edit studio
   function clearListingForm() {
-    ['l-name','l-location','l-city','l-size','l-price','l-people','l-desc','l-equipment','l-offpeak-price'].forEach(id => {
+    ['l-name','l-location','l-area','l-city','l-size','l-price','l-people','l-desc','l-equipment','l-offpeak-price'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
     document.getElementById('l-type').value = '';
@@ -746,6 +749,7 @@
 
     document.getElementById('l-name').value = s.name || '';
     document.getElementById('l-location').value = s.location || '';
+    document.getElementById('l-area').value = s.area || '';
     document.getElementById('l-city').value = s.city || '';
     document.getElementById('l-size').value = s.size_sqft || '';
     document.getElementById('l-price').value = s.price_per_hour || '';
@@ -817,6 +821,7 @@
   async function submitStudio() {
     const name = document.getElementById('l-name').value.trim();
     const location = document.getElementById('l-location').value.trim();
+    const area = document.getElementById('l-area').value.trim();
     const city = document.getElementById('l-city').value.trim();
     const size = parseInt(document.getElementById('l-size').value);
     const price = parseInt(document.getElementById('l-price').value);
@@ -828,7 +833,7 @@
     const equipment = document.getElementById('l-equipment').value.trim();
     const msg = document.getElementById('listing-msg');
 
-    if (!name || !location || !city || !size || !price || !type) { msg.textContent = 'Please fill in all required fields.'; return; }
+    if (!name || !location || !area || !city || !size || !price || !type) { msg.textContent = 'Please fill in all required fields.'; return; }
     if (maxHours < minHours) { msg.textContent = 'Maximum booking hours must be the same as or higher than the minimum.'; return; }
 
     // Off-peak (optional)
@@ -851,7 +856,7 @@
     msg.textContent = editingStudioId ? 'Saving changes…' : 'Submitting…';
     const amenities = [...document.querySelectorAll('#l-amenities input:checked')].map(c => c.value).join(',');
     const payload = {
-      name, location, city, size_sqft: size, price_per_hour: price,
+      name, location, area, city, size_sqft: size, price_per_hour: price,
       studio_type: type, max_people: people || 10, description: desc, photos: photoUrls.join(','),
       is_approved: false,   // new listings AND edits must be approved before going live
       amenities, equipment, min_hours: minHours, max_hours: maxHours,
