@@ -89,6 +89,19 @@
   .btn-approve:hover { opacity: 0.9; }
   .btn-decline { background: #fff; color: #c0392b; border: 1px solid #e3b3b0; border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .btn-decline:hover { background: #fdecec; }
+  .block-cal { border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .block-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-weight: 600; font-size: 14px; }
+  .cal-nav { background: #f4f2ee; border: none; border-radius: 8px; width: 34px; height: 34px; font-size: 18px; line-height: 1; cursor: pointer; color: #1a1a1a; }
+  .cal-nav:hover { background: #ece7df; }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; margin-bottom: 6px; }
+  .cal-weekdays span { text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+  .cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 13px; border: 1px solid transparent; }
+  .cal-day.empty { cursor: default; }
+  .cal-day.past { color: #ccc; cursor: not-allowed; }
+  .cal-day.selectable { cursor: pointer; }
+  .cal-day.selectable:hover { background: #f4f2ee; }
+  .cal-day.selected { background: #1a1a1a; color: #fff; font-weight: 600; }
   .badge-paid { background: var(--green-dim); color: var(--green); }
 
   .empty { padding: 50px 24px; text-align: center; color: var(--text-muted); }
@@ -225,28 +238,36 @@
 <!-- BLOCK TIME MODAL -->
 <div class="modal-overlay" id="block-modal">
   <div class="modal">
-    <h2>Block out a time</h2>
-    <p class="sub">No one will be able to book this studio during this slot.</p>
+    <h2>Block out time</h2>
+    <p class="sub">Tap every date you're unavailable (tap again to remove), set the times, then block them all at once.</p>
     <div class="form-group" id="block-studio-group">
       <label>Studio</label>
       <select id="block-studio"></select>
     </div>
-    <div class="form-group">
-      <label>Date</label>
-      <input type="date" id="block-date">
+
+    <div class="block-cal">
+      <div class="block-cal-head">
+        <button type="button" class="cal-nav" onclick="calPrevMonth()">‹</button>
+        <span id="cal-month-label"></span>
+        <button type="button" class="cal-nav" onclick="calNextMonth()">›</button>
+      </div>
+      <div class="cal-weekdays"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
+      <div class="cal-grid" id="cal-grid"></div>
     </div>
+    <p id="cal-selected-count" style="font-size:13px;color:var(--text-muted);margin:10px 0 0;">No dates selected yet</p>
+
     <div class="form-row" style="display:flex;gap:12px;">
       <div class="form-group" style="flex:1;">
         <label>Start time</label>
         <input type="time" id="block-start" value="09:00">
       </div>
       <div class="form-group" style="flex:1;">
-        <label>Hours</label>
-        <input type="number" id="block-hours" min="1" max="24" value="8">
+        <label>End time</label>
+        <input type="time" id="block-end" value="17:00">
       </div>
     </div>
     <p class="msg" id="block-msg" style="text-align:left;"></p>
-    <button class="btn-primary" onclick="saveBlock()">Block this time</button>
+    <button class="btn-primary" onclick="saveBlock()">Block selected dates</button>
     <button class="btn-secondary" onclick="closeBlockForm()">Cancel</button>
   </div>
 </div>
@@ -506,7 +527,7 @@
       el.innerHTML = `<div class="empty"><div class="icon">📅</div><p>No bookings yet. Once photographers request your studios they'll appear here.</p></div>`;
       return;
     }
-    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Date</th><th>Hours</th><th>Your Earnings</th><th>Status</th><th></th></tr></thead><tbody>
+    el.innerHTML = `<table><thead><tr><th>Studio</th><th>Booked by</th><th>Date</th><th>Hours</th><th>Your Earnings</th><th>Status</th><th></th></tr></thead><tbody>
       ${list.map(b => {
         const owner = Math.round((b.total_price || 0) * 0.9);
         const s = b.status || 'pending';
@@ -525,8 +546,13 @@
         } else {
           badge = `<span class="badge badge-pending">${s}</span>`;
         }
+        const contact = [
+          b.photographer_email ? `<div class="s-loc">${b.photographer_email}</div>` : '',
+          b.photographer_instagram ? `<div class="s-loc">${b.photographer_instagram}</div>` : ''
+        ].join('');
         return `<tr>
           <td><div class="s-name">${b.studios?.name || 'Studio'}</div><div class="s-loc">${b.start_time || ''}</div></td>
+          <td><div class="s-name">${b.photographer_name || '—'}</div>${contact}</td>
           <td>${b.booking_date}</td>
           <td>${b.hours} hr${b.hours > 1 ? 's' : ''}</td>
           <td style="font-weight:600;color:var(--green);">£${owner}</td>
@@ -590,29 +616,78 @@
     </tbody></table>`;
   }
 
+  // ── Multi-date block calendar ──
+  let calYear, calMonth;
+  let selectedDates = new Set();
+
   function openBlockForm() {
     if (!myStudios.length) { showToast('Add a studio first'); return; }
     const sel = document.getElementById('block-studio');
     sel.innerHTML = myStudios.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    // Hide the studio picker if there's only one
     document.getElementById('block-studio-group').style.display = myStudios.length > 1 ? 'block' : 'none';
     document.getElementById('block-msg').textContent = '';
+    selectedDates = new Set();
+    const now = new Date();
+    calYear = now.getFullYear();
+    calMonth = now.getMonth();
+    renderCalendar();
     document.getElementById('block-modal').classList.add('active');
   }
   function closeBlockForm() { document.getElementById('block-modal').classList.remove('active'); }
 
+  function calPrevMonth() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
+  function calNextMonth() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
+
+  function renderCalendar() {
+    document.getElementById('cal-month-label').textContent =
+      new Date(calYear, calMonth, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const firstDay = new Date(calYear, calMonth, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7; // make Monday the first column
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const todayStr = new Date().toISOString().split('T')[0];
+    let cells = '';
+    for (let i = 0; i < startOffset; i++) cells += `<div class="cal-day empty"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const isPast = dateStr < todayStr;
+      const isSel = selectedDates.has(dateStr);
+      if (isPast) {
+        cells += `<div class="cal-day past">${d}</div>`;
+      } else {
+        cells += `<div class="cal-day selectable${isSel ? ' selected' : ''}" onclick="toggleCalDate('${dateStr}')">${d}</div>`;
+      }
+    }
+    document.getElementById('cal-grid').innerHTML = cells;
+    updateSelectedCount();
+  }
+
+  function toggleCalDate(dateStr) {
+    if (selectedDates.has(dateStr)) selectedDates.delete(dateStr);
+    else selectedDates.add(dateStr);
+    renderCalendar();
+  }
+
+  function updateSelectedCount() {
+    const n = selectedDates.size;
+    document.getElementById('cal-selected-count').textContent =
+      n ? `${n} date${n > 1 ? 's' : ''} selected` : 'No dates selected yet';
+  }
+
   async function saveBlock() {
     const studioId = document.getElementById('block-studio').value || (myStudios[0] && myStudios[0].id);
-    const date  = document.getElementById('block-date').value;
     const start = document.getElementById('block-start').value;
-    const hours = parseInt(document.getElementById('block-hours').value);
+    const end   = document.getElementById('block-end').value;
     const msg = document.getElementById('block-msg');
     if (!studioId) { msg.textContent = 'Please choose a studio.'; return; }
-    if (!date)  { msg.textContent = 'Please choose a date.'; return; }
-    if (!start) { msg.textContent = 'Please choose a start time.'; return; }
-    if (!hours || isNaN(hours) || hours < 1) { msg.textContent = 'Please enter how many hours.'; return; }
-    msg.textContent = 'Saving…';
-    const { error } = await sb.from('bookings').insert({
+    if (!selectedDates.size) { msg.textContent = 'Please tap at least one date on the calendar.'; return; }
+    if (!start || !end) { msg.textContent = 'Please set a start and end time.'; return; }
+    const startH = parseInt(start.split(':')[0]) + parseInt(start.split(':')[1]) / 60;
+    const endH   = parseInt(end.split(':')[0])   + parseInt(end.split(':')[1]) / 60;
+    if (endH <= startH) { msg.textContent = 'End time must be after start time.'; return; }
+    const hours = Math.max(1, Math.ceil(endH - startH)); // store whole hours, covering the full range
+
+    msg.textContent = 'Blocking…';
+    const rows = [...selectedDates].map(date => ({
       studio_id: studioId,
       photographer_id: host.id,   // the host's own id — allowed by the insert policy
       booking_date: date,
@@ -621,10 +696,11 @@
       total_price: 0,
       status: 'blocked',
       payment_status: 'blocked'
-    });
+    }));
+    const { error } = await sb.from('bookings').insert(rows);
     if (error) { msg.textContent = 'Error: ' + error.message; return; }
     closeBlockForm();
-    showToast('✅ Time blocked');
+    showToast(`✅ ${rows.length} date${rows.length > 1 ? 's' : ''} blocked`);
     loadDashboard();
   }
 
