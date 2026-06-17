@@ -943,8 +943,13 @@
 
     const pendingCount  = pendingRes.count || 0;
     const approvedCount = approvedRes.count || 0;
-    const bookings      = bookingsRes.data || [];
-    const revenue       = bookings.reduce((s, b) => s + (b.total_price || 0), 0);
+    const allRows       = bookingsRes.data || [];
+    // Host availability blocks are stored as bookings — don't count them
+    const bookings      = allRows.filter(b => b.status !== 'blocked');
+    // Revenue = money actually taken and kept (paid, not refunded/cancelled/pending)
+    const revenue       = bookings
+      .filter(b => b.payment_status === 'paid')
+      .reduce((s, b) => s + (b.total_price || 0), 0);
 
     document.getElementById('stat-pending').textContent  = pendingCount;
     document.getElementById('stat-approved').textContent = approvedCount;
