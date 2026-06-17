@@ -1055,7 +1055,11 @@
 
   // ── Bookings ─────────────────────────────────────────────────────
   async function loadBookings() {
-    const { data } = await sb.from('bookings').select('*, studios(name, city)').order('created_at', { ascending: false });
+    const { data: rawBookings } = await sb.from('bookings').select('*').order('created_at', { ascending: false });
+    const { data: allStudios } = await sb.from('studios').select('id, name, city');
+    const studioMap = {};
+    (allStudios || []).forEach(s => { studioMap[s.id] = s; });
+    const data = (rawBookings || []).map(b => ({ ...b, studios: studioMap[b.studio_id] || null }));
     const el = document.getElementById('bookings-list');
     const list = data || [];
 
@@ -1069,6 +1073,7 @@
         <thead>
           <tr>
             <th>Studio</th>
+            <th>Booked by</th>
             <th>Date</th>
             <th>Hours</th>
             <th>Total</th>
@@ -1081,11 +1086,19 @@
             const ps = b.payment_status || 'pending';
             const isRefunded = ps === 'refunded' || ps === 'partially_refunded';
             const badgeClass = ps === 'paid' ? 'badge-paid' : (isRefunded ? 'badge-refunded' : 'badge-pending');
+            const contact = [
+              b.photographer_email ? `<div class="studio-location">${b.photographer_email}</div>` : '',
+              b.photographer_instagram ? `<div class="studio-location">${b.photographer_instagram}</div>` : ''
+            ].join('');
             return `
             <tr>
               <td>
                 <div class="studio-name">${b.studios?.name || 'Studio'}</div>
                 <div class="studio-location">${b.booking_date} at ${b.start_time}</div>
+              </td>
+              <td>
+                <div class="studio-name">${b.photographer_name || '—'}</div>
+                ${contact}
               </td>
               <td style="color:var(--text-muted);font-size:12px;">${new Date(b.created_at).toLocaleDateString('en-GB')}</td>
               <td>${b.hours} hr${b.hours > 1 ? 's' : ''}</td>
@@ -1111,7 +1124,11 @@
 
   // ── Payouts ──────────────────────────────────────────────────────
   async function loadPayouts() {
-    const { data } = await sb.from('bookings').select('*, studios(name, city)').eq('payment_status', 'paid').order('booking_date', { ascending: false });
+    const { data: rawPayouts } = await sb.from('bookings').select('*').eq('payment_status', 'paid').order('booking_date', { ascending: false });
+    const { data: allStudios } = await sb.from('studios').select('id, name, city');
+    const studioMap = {};
+    (allStudios || []).forEach(s => { studioMap[s.id] = s; });
+    const data = (rawPayouts || []).map(b => ({ ...b, studios: studioMap[b.studio_id] || null }));
     const el = document.getElementById('payouts-list');
     const list = data || [];
 
