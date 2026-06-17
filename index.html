@@ -1396,6 +1396,7 @@
           </div>
           <p id="account-instagram-msg" style="font-size:11px;color:var(--accent);margin:4px 0 0;min-height:12px;"></p>
         </div>
+        <a href="#" class="account-menu-item" onclick="openMyBookings();return false;">🗓️ My bookings</a>
         <a href="/host.html" id="account-dashboard-link" class="account-menu-item" style="display:none;">⚡ Host dashboard</a>
         <a href="#" class="account-menu-item" onclick="handleSignOut();return false;">Sign out</a>
       </div>
@@ -1782,8 +1783,20 @@
             <span id="total-price">£72</span>
           </div>
         </div>
+
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:12px;text-align:center;">You're not charged until the studio accepts. Free cancellation up to 48 hours before your booking — <a href="/terms.html" target="_blank" style="color:var(--accent);text-decoration:underline;">see cancellation policy</a>.</p>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- MY BOOKINGS MODAL -->
+<div class="modal-overlay" id="bookings-modal">
+  <div class="payment-modal" style="max-width:560px;">
+    <button class="modal-close" style="position:relative;top:0;right:0;float:right;margin-bottom:16px;" onclick="closeModal('bookings-modal')">✕</button>
+    <h2>My bookings</h2>
+    <p>Your studio booking requests and confirmed bookings.</p>
+    <div id="my-bookings-list" style="margin-top:16px;"><p style="color:var(--text-muted);">Loading…</p></div>
   </div>
 </div>
 
@@ -1806,6 +1819,17 @@
       <label>Card Details</label>
       <div id="stripe-card-element" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:white;"></div>
       <p id="stripe-error" style="color:#e53e3e;font-size:12px;margin-top:8px;"></p>
+    </div>
+
+    <div style="background:#f4f2ee;border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:12.5px;line-height:1.6;color:var(--text);">
+      <strong style="display:block;margin-bottom:6px;">Cancellation policy</strong>
+      Your card is only <strong>authorised</strong> now — you're charged when the studio accepts your request. After that:
+      <ul style="margin:8px 0 0;padding-left:18px;">
+        <li>Cancel <strong>more than 48 hours</strong> before your start time — full refund.</li>
+        <li>Cancel <strong>within 48 hours</strong> of the start time — 50% refund.</li>
+        <li>No-shows or cancelling after the start time — non-refundable.</li>
+      </ul>
+      <span style="display:block;margin-top:8px;color:var(--text-muted);">To cancel, contact us and we'll arrange any refund you're due. Full details in our <a href="/terms.html" target="_blank" style="color:var(--accent);text-decoration:underline;">Terms</a>.</span>
     </div>
 
     <button class="btn-book" onclick="confirmBooking()" id="pay-btn">Pay £72</button>
@@ -2297,6 +2321,73 @@
   function openStudioById(id) {
     const s = (currentList || []).find(x => String(x.id) === String(id)) || (baseList || []).find(x => String(x.id) === String(id));
     if (s) openStudio(s);
+  }
+
+  // ── Customer: My bookings + self-serve cancel ──
+  function openMyBookings() {
+    const menu = document.getElementById('account-menu');
+    if (menu) menu.style.display = 'none';
+    if (!currentUser) { showAuthModal(); return; }
+    document.getElementById('bookings-modal').classList.add('active');
+    loadMyBookings();
+  }
+
+  async function loadMyBookings() {
+    const el = document.getElementById('my-bookings-list');
+    el.innerHTML = '<p style="color:var(--text-muted);">Loading…</p>';
+    const { data: bookings } = await sb.from('bookings')
+      .select('*')
+      .eq('photographer_id', currentUser.id)
+      .neq('status', 'blocked')
+      .order('booking_date', { ascending: false });
+    if (!bookings || !bookings.length) {
+      el.innerHTML = '<p style="color:var(--text-muted);">You have no bookings yet.</p>';
+      return;
+    }
+    const ids = [...new Set(bookings.map(b => b.studio_id).filter(Boolean))];
+    const studioMap = {};
+    if (ids.length) {
+      const { data: st } = await sb.from('studios').select('id,name,area,city').in('id', ids);
+      (st || []).forEach(s => studioMap[s.id] = s);
+    }
+    const today = new Date().toISOString().split('T')[0];
+    el.innerHTML = bookings.map(b => {
+      const s = studioMap[b.studio_id] || {};
+      const status = b.status;
+      let badge, color;
+      if (status === 'pending')        { badge = 'Awaiting studio confirmation'; color = '#b8860b'; }
+      else if (status === 'confirmed') { badge = '✓ Confirmed'; color = '#1a7f4b'; }
+      else if (status === 'declined')  { badge = 'Declined — you were not charged'; color = '#888'; }
+      else if (status === 'cancelled') { badge = 'Cancelled'; color = '#888'; }
+      else if (status === 'refunded')  { badge = 'Cancelled — refunded'; color = '#888'; }
+      else if (status === 'owner_paid'){ badge = '✓ Completed'; color = '#1a7f4b'; }
+      else { badge = status; color = '#888'; }
+      const canCancel = (status === 'pending' || status === 'confirmed') && b.booking_date >= today;
+      const loc = [s.area, s.city].filter(Boolean).join(', ');
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:600;">${s.name || 'Studio'}</div>
+        ${loc ? `<div style="font-size:13px;color:var(--text-muted);margin:2px 0;">📍 ${loc}</div>` : ''}
+        <div style="font-size:13px;">${b.booking_date} · ${b.start_time} · ${b.hours} hr${b.hours > 1 ? 's' : ''} · £${b.total_price}</div>
+        <div style="font-size:12px;font-weight:600;color:${color};margin-top:6px;">${badge}</div>
+        ${canCancel ? `<button onclick="cancelMyBooking('${b.id}')" style="margin-top:10px;border:1px solid #e3b3b0;background:#fff;color:#c0392b;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel booking</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  async function cancelMyBooking(id) {
+    if (!confirm('Cancel this booking? If you have already been charged, your refund will be handled automatically under the cancellation policy.')) return;
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token;
+    try {
+      const res = await fetch('https://friendly-joy-production-6ab1.up.railway.app/cancel-booking', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: id, token })
+      });
+      const r = await res.json();
+      if (r.error) { alert('Could not cancel: ' + r.error); return; }
+      alert(r.message || 'Your booking has been cancelled.');
+      loadMyBookings();
+    } catch (e) { alert('Could not cancel: ' + e.message); }
   }
 
   async function loadStudios(typeFilter = '', locationFilter = '', fromDate = '', toDate = '') {
