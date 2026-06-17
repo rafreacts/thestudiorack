@@ -2456,13 +2456,12 @@
     const ids = studios.map(s => s.id);
     let bks = [];
     try {
-      const { data } = await sb.from('bookings')
-        .select('studio_id, booking_date, start_time, hours, status')
-        .in('studio_id', ids)
-        .in('status', ['pending', 'confirmed', 'blocked'])
-        .gte('booking_date', fromDate)
-        .lte('booking_date', toDate);
-      bks = data || [];
+      const res = await fetch(PAYMENT_SERVER + '/availability', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studioIds: ids, from: fromDate, to: toDate })
+      });
+      const json = await res.json();
+      bks = json.rows || [];
     } catch (e) { return studios; }
     const taken = {};
     bks.forEach(b => {
@@ -2807,18 +2806,19 @@
   async function loadStudioAvailability(studioId) {
     takenByDate = {};
     if (!studioId) return;
-    const today = new Date().toISOString().split('T')[0];
-    const { data } = await sb.from('bookings')
-      .select('booking_date, start_time, hours, status')
-      .eq('studio_id', studioId)
-      .in('status', ['pending', 'confirmed', 'blocked'])
-      .gte('booking_date', today);
-    (data || []).forEach(b => {
-      const start = parseTimeToHour(b.start_time);
-      if (start == null) return;
-      const end = start + (b.hours || 0);
-      (takenByDate[b.booking_date] = takenByDate[b.booking_date] || []).push([start, end]);
-    });
+    try {
+      const res = await fetch(PAYMENT_SERVER + '/availability', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studioIds: [studioId] })
+      });
+      const { rows } = await res.json();
+      (rows || []).forEach(b => {
+        const start = parseTimeToHour(b.start_time);
+        if (start == null) return;
+        const end = start + (b.hours || 0);
+        (takenByDate[b.booking_date] = takenByDate[b.booking_date] || []).push([start, end]);
+      });
+    } catch (e) { /* if this fails, the studio owner's accept step is the backstop */ }
   }
 
   function bkStartAvailable(dateStr, startHour, duration) {
@@ -3019,25 +3019,27 @@
       return;
     }
 
-    // Check the slot isn't already taken (by another booking or a host-blocked time)
+    // Final check the slot isn't already taken (re-fetch fresh from the server, which can see
+    // host blocks and everyone's bookings — the browser can only see the user's own)
     const startHour = parseTimeToHour(time);
     const endHour   = startHour + hours;
     try {
-      const { data: existing } = await sb.from('bookings')
-        .select('start_time, hours, status')
-        .eq('studio_id', currentStudio.id)
-        .eq('booking_date', date)
-        .in('status', ['pending', 'confirmed', 'blocked']);
-      const clash = (existing || []).some(b => {
+      const res = await fetch(PAYMENT_SERVER + '/availability', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studioIds: [currentStudio.id], from: date, to: date })
+      });
+      const { rows } = await res.json();
+      const clash = (rows || []).some(b => {
         const bStart = parseTimeToHour(b.start_time);
-        const bEnd   = bStart + (b.hours || 0);
+        if (bStart == null) return false;
+        const bEnd = bStart + (b.hours || 0);
         return startHour < bEnd && bStart < endHour; // time ranges overlap
       });
       if (clash) {
         errEl.textContent = 'Sorry — that time has just been taken for this studio. Please pick a different time or date.';
         return;
       }
-    } catch (e) { /* if the check can't run, host approval is the backstop */ }
+    } catch (e) { /* if the check can't run, the studio owner's accept step is the backstop */ }
 
     payBtn.textContent = 'Processing…';
     payBtn.disabled = true;
