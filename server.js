@@ -374,6 +374,28 @@ app.post('/cancel-booking', async (req, res) => {
   }
 });
 
+// Public availability for a studio (or studios) — powers the booking calendar.
+// Uses the service role so it can see ALL bookings and host blocks (row-level security
+// hides other people's bookings from each user), but returns ONLY the date/time/length —
+// never names, emails, or who booked.
+app.post('/availability', async (req, res) => {
+  try {
+    const { studioIds, from, to } = req.body || {};
+    let q = sbAdmin.from('bookings')
+      .select('studio_id, booking_date, start_time, hours')
+      .in('status', ['pending', 'confirmed', 'blocked']);
+    if (Array.isArray(studioIds) && studioIds.length) q = q.in('studio_id', studioIds);
+    if (from) q = q.gte('booking_date', from);
+    if (to)   q = q.lte('booking_date', to);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ rows: data || [] });
+  } catch (error) {
+    console.error('Availability error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create a Stripe Payment Intent
 // Called when photographer clicks "Reserve now"
 app.post('/create-payment-intent', async (req, res) => {
