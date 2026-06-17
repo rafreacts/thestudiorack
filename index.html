@@ -898,35 +898,61 @@
   }
 
   .modal-images {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 8px;
-    height: 400px;
     border-radius: 24px 24px 0 0;
     overflow: hidden;
+    background: #f4f2ee;
   }
 
   .modal-main-image {
+    position: relative;
+    height: 360px;
     background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 60px;
   }
+  .modal-main-image.clickable { cursor: zoom-in; }
 
-  .modal-side-images {
-    display: grid;
-    grid-template-rows: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .modal-side-image {
-    background: linear-gradient(135deg, #2a2a2a 0%, #444 100%);
+  .zoom-hint {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 999px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 32px;
+    gap: 6px;
+    pointer-events: none;
   }
+
+  .modal-thumbs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 10px 12px 12px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-thumbs::-webkit-scrollbar { height: 6px; }
+  .modal-thumbs::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
+  .modal-thumb {
+    flex: 0 0 auto;
+    width: 88px;
+    height: 64px;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    scroll-snap-align: start;
+    border: 2px solid transparent;
+    transition: border-color 0.15s ease;
+  }
+  .modal-thumb.active { border-color: var(--accent); }
+  .modal-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
   /* ── Photo lightbox ── */
   .lightbox {
@@ -1350,8 +1376,8 @@
     footer { padding: 40px 20px 32px; }
     .footer-top { grid-template-columns: 1fr 1fr; gap: 32px; }
     .modal-content { grid-template-columns: 1fr; }
-    .modal-images { height: 260px; grid-template-columns: 1fr; }
-    .modal-side-images { display: none; }
+    .modal-main-image { height: 260px; }
+    .modal-thumb { width: 72px; height: 54px; }
     .nav-links { display: none; }
   }
 </style>
@@ -1669,10 +1695,7 @@
     <button class="modal-close" onclick="closeModal('studio-modal')">✕</button>
     <div class="modal-images">
       <div class="modal-main-image" id="modal-main-img">📷</div>
-      <div class="modal-side-images">
-        <div class="modal-side-image" id="modal-side-1">🎨</div>
-        <div class="modal-side-image" id="modal-side-2">💡</div>
-      </div>
+      <div class="modal-thumbs" id="modal-thumbs"></div>
     </div>
     <div class="modal-content">
       <div class="modal-info">
@@ -1779,11 +1802,11 @@
 
     <div class="form-group">
       <label>Full Name</label>
-      <input type="text" placeholder="Your full name">
+      <input type="text" id="pay-name" placeholder="Your full name">
     </div>
     <div class="form-group">
       <label>Email</label>
-      <input type="email" placeholder="your@email.com">
+      <input type="email" id="pay-email" placeholder="your@email.com">
     </div>
     <div class="form-group">
       <label>Card Details</label>
@@ -2396,50 +2419,43 @@
     document.getElementById('modal-price').textContent    = '£' + s.price_per_hour;
     document.getElementById('modal-desc').textContent     = s.description || '';
 
-    // Photos
+    // Photos — big preview + swipeable thumbnail strip
     const mainImg = document.getElementById('modal-main-img');
-    const side1 = document.getElementById('modal-side-1');
-    const side2 = document.getElementById('modal-side-2');
-    const photos = s.photos ? s.photos.split(',').filter(Boolean) : [];
+    const thumbs  = document.getElementById('modal-thumbs');
+    const photos  = s.photos ? s.photos.split(',').filter(Boolean) : [];
     galleryPhotos = photos;
 
+    function showMainPhoto(i) {
+      const hint = photos.length > 1
+        ? `<div class="zoom-hint">🔍 Tap to enlarge · ${i + 1}/${photos.length}</div>`
+        : `<div class="zoom-hint">🔍 Tap to enlarge</div>`;
+      mainImg.innerHTML = `<img src="${photos[i]}" style="width:100%;height:100%;object-fit:cover;">${hint}`;
+      mainImg.classList.add('clickable');
+      mainImg.onclick = () => openLightbox(i);
+      thumbs.querySelectorAll('.modal-thumb').forEach(t => t.classList.toggle('active', parseInt(t.dataset.i) === i));
+    }
+
     if (photos.length > 0) {
-      const badge = photos.length > 1
-        ? `<div style="position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,0.65);color:#fff;font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;pointer-events:none;">📷 ${photos.length} photos</div>`
-        : '';
-      mainImg.innerHTML = `<div style="position:relative;width:100%;height:100%;"><img src="${photos[0]}" style="width:100%;height:100%;object-fit:cover;">${badge}</div>`;
-      mainImg.style.cursor = 'pointer';
-      mainImg.onclick = () => openLightbox(0);
+      showMainPhoto(0);
+      // Build the swipeable thumbnail strip (only if there's more than one photo)
+      if (photos.length > 1) {
+        thumbs.style.display = 'flex';
+        thumbs.innerHTML = photos.map((p, i) =>
+          `<div class="modal-thumb${i === 0 ? ' active' : ''}" data-i="${i}"><img src="${p}" alt=""></div>`
+        ).join('');
+        thumbs.querySelectorAll('.modal-thumb').forEach(t => {
+          t.onclick = () => showMainPhoto(parseInt(t.dataset.i));
+        });
+      } else {
+        thumbs.style.display = 'none';
+        thumbs.innerHTML = '';
+      }
     } else {
-      mainImg.textContent = '📷';
-      mainImg.style.cursor = 'default';
+      mainImg.innerHTML = '📷';
+      mainImg.classList.remove('clickable');
       mainImg.onclick = null;
-    }
-
-    // Side image 1
-    if (photos.length > 1) {
-      side1.innerHTML = `<img src="${photos[1]}" style="width:100%;height:100%;object-fit:cover;">`;
-      side1.style.cursor = 'pointer';
-      side1.onclick = () => openLightbox(1);
-    } else {
-      side1.textContent = '🎨';
-      side1.style.cursor = 'default';
-      side1.onclick = null;
-    }
-
-    // Side image 2 (with "+N more" overlay if there are extra photos)
-    if (photos.length > 2) {
-      const extra = photos.length - 3;
-      const overlay = extra > 0
-        ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600;">+${extra} more</div>`
-        : '';
-      side2.innerHTML = `<div style="position:relative;width:100%;height:100%;"><img src="${photos[2]}" style="width:100%;height:100%;object-fit:cover;">${overlay}</div>`;
-      side2.style.cursor = 'pointer';
-      side2.onclick = () => openLightbox(2);
-    } else {
-      side2.textContent = '💡';
-      side2.style.cursor = 'default';
-      side2.onclick = null;
+      thumbs.style.display = 'none';
+      thumbs.innerHTML = '';
     }
 
     // Tags
@@ -2576,6 +2592,13 @@
     document.getElementById('studio-modal').classList.remove('active');
     document.getElementById('payment-modal').classList.add('active');
 
+    // Pre-fill name/email from the account where we can
+    const md = currentUser.user_metadata || {};
+    const nameEl = document.getElementById('pay-name');
+    const emailEl = document.getElementById('pay-email');
+    if (emailEl) emailEl.value = currentUser.email || '';
+    if (nameEl && !nameEl.value) nameEl.value = md.full_name || md.name || '';
+
     // Mount Stripe card element
     setTimeout(() => {
       if (!stripeCard) {
@@ -2597,6 +2620,9 @@
 
     if (!currentUser)   { errEl.textContent = 'Please sign in before paying.'; return; }
     if (!currentStudio) { errEl.textContent = 'Something went wrong — please close this and reopen the studio.'; return; }
+
+    const bookerName = (document.getElementById('pay-name').value || '').trim();
+    if (!bookerName) { errEl.textContent = 'Please enter your full name so the studio knows who to expect.'; return; }
 
     const hours = parseInt(document.getElementById('book-hours').value);
     const date  = document.getElementById('book-date').value;
@@ -2662,6 +2688,9 @@
       await sb.from('bookings').insert({
         studio_id:        currentStudio.id || null,
         photographer_id:  currentUser.id,
+        photographer_name:      bookerName,
+        photographer_email:     currentUser.email,
+        photographer_instagram: (currentUser.user_metadata && currentUser.user_metadata.instagram) || null,
         booking_date:     date,
         start_time:       time,
         hours,
