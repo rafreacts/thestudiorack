@@ -1140,69 +1140,46 @@
   }
 
   .booking-dates {
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
     margin-bottom: 12px;
   }
 
-  .date-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  .booking-dates > .date-field {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .booking-dates > .date-field label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 4px; display: block;
+  }
+  .booking-dates > .date-field select {
+    border: none; outline: none; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: var(--text); background: transparent; width: 100%; cursor: pointer;
   }
 
-  .date-field {
-    padding: 14px 16px;
-    border-right: 1px solid var(--border);
-    cursor: pointer;
-  }
+  /* Availability calendar */
+  .bk-cal { border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .bk-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: 600; font-size: 14px; }
+  .bk-nav { background: #f4f2ee; border: none; border-radius: 8px; width: 32px; height: 32px; font-size: 18px; line-height: 1; cursor: pointer; color: var(--text); }
+  .bk-nav:hover { background: #ece7df; }
+  .bk-weekdays { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; margin-bottom: 6px; }
+  .bk-weekdays span { text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .bk-cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+  .bk-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 13px; border: 1px solid transparent; }
+  .bk-day.empty { cursor: default; }
+  .bk-day.disabled { color: #c9c4bc; text-decoration: line-through; cursor: not-allowed; background: #f6f5f2; }
+  .bk-day.avail { cursor: pointer; border-color: var(--border); }
+  .bk-day.avail:hover { background: #f4f2ee; }
+  .bk-day.selected { background: var(--text); color: #fff; border-color: var(--text); font-weight: 600; }
 
-  .date-field:last-child { border-right: none; }
+  /* Start-time slot buttons */
+  .bk-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .bk-time { padding: 10px 6px; border: 1px solid var(--border); border-radius: 10px; background: #fff; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); cursor: pointer; }
+  .bk-time:hover { border-color: var(--text); }
+  .bk-time.active { background: var(--text); color: #fff; border-color: var(--text); font-weight: 600; }
+  .bk-time.taken { background: #f6f5f2; color: #b8b3aa; text-decoration: line-through; cursor: not-allowed; border-style: dashed; }
+  .bk-hint { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
 
-  .date-field label {
-    display: block;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-
-  .date-field input {
-    border: none;
-    outline: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: var(--text-muted);
-    background: transparent;
-    width: 100%;
-    cursor: pointer;
-  }
-
-  .time-field {
-    padding: 14px 16px;
-    border-top: 1px solid var(--border);
-  }
-
-  .time-field label {
-    display: block;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-
-  .time-field select {
-    border: none;
-    outline: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: var(--text-muted);
-    background: transparent;
-    width: 100%;
-    cursor: pointer;
-  }
 
   .btn-book {
     width: 100%;
@@ -1733,39 +1710,35 @@
         <div class="booking-rating" id="modal-rating">★ New</div>
 
         <div class="booking-dates">
-          <div class="date-row">
-            <div class="date-field">
-              <label>Date</label>
-              <input type="date" id="book-date" onchange="updatePrice()">
-            </div>
-            <div class="date-field">
-              <label>Duration</label>
-              <select id="book-hours" onchange="updatePrice()">
-                <option value="1">1 hour</option>
-                <option value="2">2 hours</option>
-                <option value="3">3 hours</option>
-                <option value="4">4 hours</option>
-                <option value="6">6 hours</option>
-                <option value="8">Full day (8hrs)</option>
-              </select>
-            </div>
-          </div>
-          <div class="time-field">
-            <label>Start time</label>
-            <select id="book-time" onchange="updatePrice()">
-              <option>8:00 AM</option>
-              <option>9:00 AM</option>
-              <option>10:00 AM</option>
-              <option>11:00 AM</option>
-              <option>12:00 PM</option>
-              <option>1:00 PM</option>
-              <option>2:00 PM</option>
-              <option>3:00 PM</option>
-              <option>4:00 PM</option>
-              <option>5:00 PM</option>
-              <option>6:00 PM</option>
+          <div class="date-field" style="margin-bottom:14px;">
+            <label>Duration</label>
+            <select id="book-hours" onchange="onDurationChange()">
+              <option value="1">1 hour</option>
+              <option value="2">2 hours</option>
+              <option value="3">3 hours</option>
+              <option value="4">4 hours</option>
+              <option value="6">6 hours</option>
+              <option value="8">Full day (8hrs)</option>
             </select>
           </div>
+
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">Choose a date</label>
+          <div class="bk-cal">
+            <div class="bk-cal-head">
+              <button type="button" class="bk-nav" onclick="bkPrevMonth()">‹</button>
+              <span id="bk-cal-label"></span>
+              <button type="button" class="bk-nav" onclick="bkNextMonth()">›</button>
+            </div>
+            <div class="bk-weekdays"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
+            <div class="bk-cal-grid" id="bk-cal-grid"></div>
+          </div>
+
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text);margin:16px 0 8px;">Start time</label>
+          <div class="bk-times" id="bk-times"></div>
+          <p class="bk-hint" id="bk-times-hint">Pick a date to see available start times.</p>
+
+          <input type="hidden" id="book-date">
+          <input type="hidden" id="book-time">
         </div>
 
         <div id="min-hours-note" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>
@@ -2419,6 +2392,11 @@
     document.getElementById('modal-price').textContent    = '£' + s.price_per_hour;
     document.getElementById('modal-desc').textContent     = s.description || '';
 
+    // Load this studio's availability, then build the booking calendar
+    takenByDate = {};
+    bkInitCalendar();
+    loadStudioAvailability(s.id).then(() => { bkRenderCalendar(); bkRenderTimes(); });
+
     // Photos — big preview + swipeable thumbnail strip
     const mainImg = document.getElementById('modal-main-img');
     const thumbs  = document.getElementById('modal-thumbs');
@@ -2523,13 +2501,140 @@
 
   // "2:00 PM" -> 14 ; "8:00 AM" -> 8 ; "12:00 PM" -> 12
   function parseTimeToHour(t) {
-    const m = (t || '').match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!m) return null;
-    let h = parseInt(m[1], 10);
-    const ap = m[3].toUpperCase();
-    if (ap === 'PM' && h !== 12) h += 12;
-    if (ap === 'AM' && h === 12) h = 0;
-    return h;
+    if (!t) return null;
+    t = String(t).trim();
+    // 12-hour format e.g. "9:00 AM" / "1:30 PM"
+    let m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (m) {
+      let h = parseInt(m[1], 10);
+      const min = parseInt(m[2], 10) || 0;
+      const ap = m[3].toUpperCase();
+      if (ap === 'PM' && h !== 12) h += 12;
+      if (ap === 'AM' && h === 12) h = 0;
+      return h + min / 60;
+    }
+    // 24-hour format e.g. "09:00" / "9:00" (how host blocks are stored)
+    m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) return parseInt(m[1], 10) + parseInt(m[2], 10) / 60;
+    return null;
+  }
+
+  // ── Availability-aware booking calendar ──
+  const BK_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // bookable start hours
+  let takenByDate = {};
+  let bkCalYear, bkCalMonth;
+
+  function bkHourLabel(h) {
+    const ap = h < 12 ? 'AM' : 'PM';
+    let hh = h % 12; if (hh === 0) hh = 12;
+    return `${hh}:00 ${ap}`;
+  }
+
+  async function loadStudioAvailability(studioId) {
+    takenByDate = {};
+    if (!studioId) return;
+    const today = new Date().toISOString().split('T')[0];
+    const { data } = await sb.from('bookings')
+      .select('booking_date, start_time, hours, status')
+      .eq('studio_id', studioId)
+      .in('status', ['pending', 'confirmed', 'blocked'])
+      .gte('booking_date', today);
+    (data || []).forEach(b => {
+      const start = parseTimeToHour(b.start_time);
+      if (start == null) return;
+      const end = start + (b.hours || 0);
+      (takenByDate[b.booking_date] = takenByDate[b.booking_date] || []).push([start, end]);
+    });
+  }
+
+  function bkStartAvailable(dateStr, startHour, duration) {
+    const end = startHour + duration;
+    return !(takenByDate[dateStr] || []).some(([s, e]) => startHour < e && s < end);
+  }
+  function bkDateAvailable(dateStr) {
+    return BK_SLOTS.some(h => bkStartAvailable(dateStr, h, 1));
+  }
+
+  function bkInitCalendar() {
+    const now = new Date();
+    bkCalYear = now.getFullYear();
+    bkCalMonth = now.getMonth();
+    document.getElementById('book-date').value = '';
+    document.getElementById('book-time').value = '';
+    bkRenderCalendar();
+    bkRenderTimes();
+  }
+
+  function bkRenderCalendar() {
+    document.getElementById('bk-cal-label').textContent =
+      new Date(bkCalYear, bkCalMonth, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const firstDay = new Date(bkCalYear, bkCalMonth, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(bkCalYear, bkCalMonth + 1, 0).getDate();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const selDate = document.getElementById('book-date').value;
+    let cells = '';
+    for (let i = 0; i < startOffset; i++) cells += `<div class="bk-day empty"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${bkCalYear}-${String(bkCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const isPast = dateStr < todayStr;
+      const unavail = !isPast && !bkDateAvailable(dateStr);
+      if (isPast || unavail) {
+        cells += `<div class="bk-day disabled">${d}</div>`;
+      } else {
+        const isSel = dateStr === selDate;
+        cells += `<div class="bk-day avail${isSel ? ' selected' : ''}" onclick="bkSelectDate('${dateStr}')">${d}</div>`;
+      }
+    }
+    document.getElementById('bk-cal-grid').innerHTML = cells;
+  }
+
+  function bkPrevMonth() { bkCalMonth--; if (bkCalMonth < 0) { bkCalMonth = 11; bkCalYear--; } bkRenderCalendar(); }
+  function bkNextMonth() { bkCalMonth++; if (bkCalMonth > 11) { bkCalMonth = 0; bkCalYear++; } bkRenderCalendar(); }
+
+  function bkSelectDate(dateStr) {
+    document.getElementById('book-date').value = dateStr;
+    document.getElementById('book-time').value = '';
+    bkRenderCalendar();
+    bkRenderTimes();
+    updatePrice();
+  }
+
+  function bkRenderTimes() {
+    const wrap = document.getElementById('bk-times');
+    const hint = document.getElementById('bk-times-hint');
+    const dateStr = document.getElementById('book-date').value;
+    const duration = parseInt(document.getElementById('book-hours').value) || 1;
+    if (!dateStr) { wrap.innerHTML = ''; hint.textContent = 'Pick a date to see available start times.'; return; }
+    const selectedTime = document.getElementById('book-time').value;
+    let any = false;
+    wrap.innerHTML = BK_SLOTS.map(h => {
+      const label = bkHourLabel(h);
+      const avail = bkStartAvailable(dateStr, h, duration);
+      if (avail) {
+        any = true;
+        const isSel = label === selectedTime;
+        return `<button type="button" class="bk-time${isSel ? ' active' : ''}" onclick="bkSelectTime('${label}')">${label}</button>`;
+      }
+      return `<button type="button" class="bk-time taken" disabled>${label}</button>`;
+    }).join('');
+    hint.textContent = any
+      ? 'Crossed-out times are already booked.'
+      : 'No start times fit this duration on this day — try a shorter duration or another date.';
+    if (selectedTime && !BK_SLOTS.some(h => bkHourLabel(h) === selectedTime && bkStartAvailable(dateStr, h, duration))) {
+      document.getElementById('book-time').value = '';
+    }
+  }
+
+  function bkSelectTime(label) {
+    document.getElementById('book-time').value = label;
+    bkRenderTimes();
+    updatePrice();
+  }
+
+  function onDurationChange() {
+    bkRenderTimes();
+    updatePrice();
   }
 
   // Decide the hourly rate for the currently chosen date + start time.
