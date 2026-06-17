@@ -277,6 +277,103 @@ app.post('/decline-booking', async (req, res) => {
   }
 });
 
+// Parse a booking date + start time into a Date (handles "9:00 AM" and "09:00")
+function bookingStartDate(dateStr, timeStr) {
+  let h = 0, m = 0;
+  const ampm = (timeStr || '').match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (ampm) { h = (parseInt(ampm[1], 10) % 12) + (/pm/i.test(ampm[3]) ? 12 : 0); m = parseInt(ampm[2], 10); }
+  else { const t = (timeStr || '').match(/^(\d{1,2}):(\d{2})$/); if (t) { h = parseInt(t[1], 10); m = parseInt(t[2], 10); } }
+  return new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`);
+}
+
+function bookingCancelledEmail({ studioName, bookingDate, startTime, refundText }) {
+  return `
+  <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
+    <h1 style="font-size:22px;color:#0a0a0a;">Your booking has been cancelled</h1>
+    <p style="color:#555;line-height:1.6;">Your booking for <strong>${studioName}</strong> on ${bookingDate} at ${startTime} has been cancelled.</p>
+    <p style="color:#555;line-height:1.6;">${refundText}</p>
+    <p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p>
+  </div>`;
+}
+
+// Customer cancels their own booking — releases the hold or refunds per the cancellation policy, automatically
+app.post('/cancel-booking', async (req, res) => {
+  try {
+    const { bookingId, token } = req.body;
+    if (!bookingId || !token) return res.status(400).json({ error: 'Missing data' });
+
+    const { data: userData } = await sbAdmin.auth.getUser(token);
+    const uid = userData?.user?.id;
+    if (!uid) return res.status(401).json({ error: 'Not signed in' });
+
+    const { data: booking } = await sbAdmin.from('bookings').select('*').eq('id', bookingId).single();
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (booking.photographer_id !== uid) return res.status(403).json({ error: 'This is not your booking' });
+    if (['cancelled', 'declined', 'refunded'].includes(booking.status)) {
+      return res.json({ success: true, message: 'This booking is already cancelled.' });
+    }
+
+    const pi = booking.stripe_payment_id;
+    let message = 'Your booking has been cancelled.';
+    let newPaymentStatus = 'cancelled';
+
+    if (booking.payment_status === 'authorized') {
+      // Not charged yet — just release the hold
+      try { if (pi) await stripe.paymentIntents.cancel(pi); } catch (e) { console.error('cancel auth:', e.message); }
+      message = 'Your booking has been cancelled. Your card was only on hold and has not been charged.';
+    } else if (booking.payment_status === 'paid') {
+      // Already charged — refund per policy: >48h full, within 48h 50%, past start none
+      const hoursUntil = (bookingStartDate(booking.booking_date, booking.start_time).getTime() - Date.now()) / 3600000;
+      const totalPence = Math.round((booking.total_price || 0) * 100);
+      let refundPence = 0;
+      if (hoursUntil > 48) refundPence = totalPence;
+      else if (hoursUntil > 0) refundPence = Math.round(totalPence * 0.5);
+      else refundPence = 0;
+
+      if (refundPence > 0) {
+        try { await stripe.refunds.create({ payment_intent: pi, amount: refundPence }); }
+        catch (e) { console.error('refund:', e.message); return res.status(400).json({ error: 'Refund failed: ' + e.message }); }
+      }
+      if (refundPence === totalPence) { newPaymentStatus = 'refunded'; message = 'Your booking has been cancelled and a full refund of £' + (refundPence / 100).toFixed(2) + ' is on its way (5–10 business days).'; }
+      else if (refundPence > 0)      { newPaymentStatus = 'partially_refunded'; message = 'Your booking has been cancelled. As it was within 48 hours, a 50% refund of £' + (refundPence / 100).toFixed(2) + ' is on its way (5–10 business days).'; }
+      else                           { newPaymentStatus = 'cancelled'; message = 'Your booking has been cancelled. As it was after the start time, no refund is due under the cancellation policy.'; }
+    }
+
+    await sbAdmin.from('bookings').update({ status: 'cancelled', payment_status: newPaymentStatus }).eq('id', bookingId);
+
+    // Notify the customer
+    try {
+      const email = userData.user.email;
+      let studioName = 'your studio';
+      const { data: studio } = await sbAdmin.from('studios').select('name, owner_id').eq('id', booking.studio_id).single();
+      if (studio && studio.name) studioName = studio.name;
+      const refundText = booking.payment_status === 'paid'
+        ? message
+        : 'Your card was only on hold and was never charged, so there is nothing to refund.';
+      if (email) {
+        await resend.emails.send({ from: FROM, to: email, subject: `Booking cancelled - ${studioName}`, html: bookingCancelledEmail({ studioName, bookingDate: booking.booking_date, startTime: booking.start_time, refundText }) });
+      }
+      // Notify the host so they free up the slot
+      if (studio && studio.owner_id) {
+        const { data: hostData } = await sbAdmin.auth.admin.getUserById(studio.owner_id);
+        const hostEmail = hostData?.user?.email;
+        if (hostEmail) {
+          await resend.emails.send({
+            from: FROM, to: hostEmail,
+            subject: `Booking cancelled - ${studioName}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a;"><h1 style="font-size:22px;">A booking was cancelled</h1><p style="color:#555;line-height:1.6;">The booking for <strong>${studioName}</strong> on ${booking.booking_date} at ${booking.start_time} (${booking.hours} hour(s)) has been cancelled by the photographer. This slot is now free again on StudioRack.</p><p style="color:#999;font-size:12px;margin-top:32px;">StudioRack &middot; thestudiorack.com</p></div>`
+          });
+        }
+      }
+    } catch (e) { console.error('cancel emails:', e.message); }
+
+    res.json({ success: true, message });
+  } catch (error) {
+    console.error('Cancel booking error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create a Stripe Payment Intent
 // Called when photographer clicks "Reserve now"
 app.post('/create-payment-intent', async (req, res) => {
