@@ -2467,7 +2467,7 @@
     bks.forEach(b => {
       const st = parseTimeToHour(b.start_time);
       if (st == null) return;
-      const key = b.studio_id + '|' + b.booking_date;
+      const key = b.studio_id + '|' + (b.booking_date || '').slice(0, 10);
       (taken[key] = taken[key] || []).push([st, st + (b.hours || 0)]);
     });
     const SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -2795,6 +2795,7 @@
   // ── Availability-aware booking calendar ──
   const BK_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // bookable start hours
   let takenByDate = {};
+  let availDebug = '';
   let bkCalYear, bkCalMonth;
 
   function bkHourLabel(h) {
@@ -2805,20 +2806,26 @@
 
   async function loadStudioAvailability(studioId) {
     takenByDate = {};
+    availDebug = '';
     if (!studioId) return;
     try {
       const res = await fetch(PAYMENT_SERVER + '/availability', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studioIds: [studioId] })
       });
-      const { rows } = await res.json();
-      (rows || []).forEach(b => {
+      const json = await res.json();
+      const rows = json.rows || [];
+      availDebug = `[diag] studio ${studioId}: ${rows.length} blocked/booked slot(s) loaded`;
+      if (json.error) availDebug += ` · server error: ${json.error}`;
+      if (rows.length) availDebug += ` · e.g. ${(rows[0].booking_date || '').slice(0,10)} ${rows[0].start_time} for ${rows[0].hours}h`;
+      rows.forEach(b => {
         const start = parseTimeToHour(b.start_time);
         if (start == null) return;
         const end = start + (b.hours || 0);
-        (takenByDate[b.booking_date] = takenByDate[b.booking_date] || []).push([start, end]);
+        const key = (b.booking_date || '').slice(0, 10); // normalise in case it has a time part
+        (takenByDate[key] = takenByDate[key] || []).push([start, end]);
       });
-    } catch (e) { /* if this fails, the studio owner's accept step is the backstop */ }
+    } catch (e) { availDebug = `[diag] could not reach availability service: ${e.message}`; }
   }
 
   function bkStartAvailable(dateStr, startHour, duration) {
@@ -2892,9 +2899,10 @@
       }
       return `<button type="button" class="bk-time taken" disabled>${label}</button>`;
     }).join('');
-    hint.textContent = any
+    hint.textContent = (any
       ? 'Crossed-out times are already booked.'
-      : 'No start times fit this duration on this day — try a shorter duration or another date.';
+      : 'No start times fit this duration on this day — try a shorter duration or another date.')
+      + (availDebug ? '  ' + availDebug : '');
     if (selectedTime && !BK_SLOTS.some(h => bkHourLabel(h) === selectedTime && bkStartAvailable(dateStr, h, duration))) {
       document.getElementById('book-time').value = '';
     }
