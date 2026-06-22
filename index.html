@@ -1735,7 +1735,6 @@
         <div class="booking-rating" id="modal-rating">★ New</div>
 
         <div class="booking-dates">
-          <div id="avail-diag" style="background:#fffbe6;border:1px solid #e6d98a;border-radius:8px;padding:8px 10px;font-size:11px;color:#665c00;margin-bottom:12px;word-break:break-word;">DIAG3: loading availability…</div>
           <div class="date-field" style="margin-bottom:14px;">
             <label>Duration</label>
             <select id="book-hours" onchange="onDurationChange()">
@@ -2796,7 +2795,6 @@
   // ── Availability-aware booking calendar ──
   const BK_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // bookable start hours
   let takenByDate = {};
-  let availDebug = '';
   let bkCalYear, bkCalMonth;
 
   function bkHourLabel(h) {
@@ -2807,7 +2805,6 @@
 
   async function loadStudioAvailability(studioId) {
     takenByDate = {};
-    availDebug = '';
     if (!studioId) return;
     try {
       const res = await fetch(PAYMENT_SERVER + '/availability', {
@@ -2823,11 +2820,7 @@
         const key = (b.booking_date || '').slice(0, 10); // normalise in case it has a time part
         (takenByDate[key] = takenByDate[key] || []).push([start, end]);
       });
-      availDebug = `DIAG3 · studio ${studioId} · server rows: ${rows.length} · parsed dates: ${Object.keys(takenByDate).join(', ') || 'none'}`;
-      if (rows.length) availDebug += ` · first: ${(rows[0].booking_date||'').slice(0,10)} ${rows[0].start_time} ${rows[0].hours}h → parsed start ${parseTimeToHour(rows[0].start_time)}`;
-    } catch (e) { availDebug = `DIAG3 · could not reach availability service: ${e.message}`; }
-    const box = document.getElementById('avail-diag');
-    if (box) box.textContent = availDebug;
+    } catch (e) { /* if this fails, the studio owner's accept step is the backstop */ }
   }
 
   function bkStartAvailable(dateStr, startHour, duration) {
