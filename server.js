@@ -396,6 +396,25 @@ app.post('/availability', async (req, res) => {
   }
 });
 
+// TEMP diagnostic — open this URL in a browser to see what the server can actually read.
+// Tells us if the service key works and whether the block is visible to the server.
+app.get('/availability-test', async (req, res) => {
+  try {
+    const { data, error } = await sbAdmin
+      .from('bookings')
+      .select('studio_id, booking_date, start_time, hours, status')
+      .in('status', ['pending', 'confirmed', 'blocked'])
+      .order('booking_date', { ascending: true });
+    res.json({
+      serverCanSeeRows: (data || []).length,
+      error: error ? error.message : null,
+      rows: data || []
+    });
+  } catch (e) {
+    res.json({ crash: e.message });
+  }
+});
+
 // Create a Stripe Payment Intent
 // Called when photographer clicks "Reserve now"
 app.post('/create-payment-intent', async (req, res) => {
