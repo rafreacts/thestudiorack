@@ -2786,8 +2786,8 @@
       if (ap === 'AM' && h === 12) h = 0;
       return h + min / 60;
     }
-    // 24-hour format e.g. "09:00" / "9:00" (how host blocks are stored)
-    m = t.match(/^(\d{1,2}):(\d{2})$/);
+    // 24-hour format e.g. "09:00", "9:00" or "09:00:00" (how the database returns times)
+    m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
     if (m) return parseInt(m[1], 10) + parseInt(m[2], 10) / 60;
     return null;
   }
@@ -2899,10 +2899,9 @@
       }
       return `<button type="button" class="bk-time taken" disabled>${label}</button>`;
     }).join('');
-    hint.textContent = (any
+    hint.textContent = any
       ? 'Crossed-out times are already booked.'
-      : 'No start times fit this duration on this day — try a shorter duration or another date.')
-      + (availDebug ? '  ' + availDebug : '');
+      : 'No start times fit this duration on this day — try a shorter duration or another date.';
     if (selectedTime && !BK_SLOTS.some(h => bkHourLabel(h) === selectedTime && bkStartAvailable(dateStr, h, duration))) {
       document.getElementById('book-time').value = '';
     }
