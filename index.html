@@ -2003,10 +2003,15 @@
       }
     });
 
-    // Close modals on overlay click
+    // Close modals on overlay click — but ONLY when the press both starts and
+    // ends on the dark background. This stops the modal closing when you drag to
+    // highlight text inside an input and release outside the box.
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      let pressStartedOnOverlay = false;
+      overlay.addEventListener('pointerdown', e => { pressStartedOnOverlay = (e.target === overlay); });
       overlay.addEventListener('click', e => {
-        if (e.target === overlay) { closeModal(overlay.id); }
+        if (e.target === overlay && pressStartedOnOverlay) { closeModal(overlay.id); }
+        pressStartedOnOverlay = false;
       });
     });
 
