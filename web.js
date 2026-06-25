@@ -3,11 +3,23 @@ const path = require('path');
 
 const app = express();
 
-// Serve all static files (index.html, admin.html, host.html, terms.html, reset.html)
-app.use(express.static(__dirname));
+// Serve all static files. Tell browsers NEVER to cache HTML, so every deploy
+// shows up immediately (no more stale cached pages / needing incognito).
+app.use(express.static(__dirname, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Default route serves the homepage
 app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
