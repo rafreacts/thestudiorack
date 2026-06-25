@@ -1738,7 +1738,6 @@
         <div class="booking-rating" id="modal-rating">★ New</div>
 
         <div class="booking-dates">
-          <div id="avail-diag" style="background:#fffbe6;border:1px solid #e6d98a;border-radius:8px;padding:8px 10px;font-size:11px;color:#665c00;margin-bottom:12px;word-break:break-word;">BUILD-A · loading availability…</div>
           <div class="date-field" style="margin-bottom:14px;">
             <label>Duration</label>
             <select id="book-hours" onchange="onDurationChange()">
@@ -2800,7 +2799,6 @@
   const BK_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // bookable start hours
   let takenByDate = {};
   let availLoading = false;
-  let availDebug = 'BUILD-A';
   let bkCalYear, bkCalMonth;
 
   function bkHourLabel(h) {
@@ -2813,7 +2811,7 @@
     takenByDate = {};
     availLoading = true;
     if (!studioId) { availLoading = false; return; }
-    let lastErr = null, gotData = false;
+    let gotData = false;
     for (let attempt = 0; attempt < 4 && !gotData; attempt++) {
       try {
         const res = await fetch(PAYMENT_SERVER + '/availability', {
@@ -2830,19 +2828,13 @@
           const key = (b.booking_date || '').slice(0, 10); // normalise in case it has a time part
           (takenByDate[key] = takenByDate[key] || []).push([start, end]);
         });
-        availDebug = `BUILD-A · studio ${studioId} · server rows: ${rows.length} · dates: ${Object.keys(takenByDate).join(', ') || 'none'}`;
-        if (rows.length) availDebug += ` · first: ${rows[0].start_time}→${parseTimeToHour(rows[0].start_time)}`;
         gotData = true;
       } catch (e) {
-        lastErr = e;
-        // backend may be waking up — wait, then retry
+        // backend may be waking up or briefly unreachable — wait, then retry
         if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
       }
     }
-    if (!gotData) availDebug = `BUILD-A · could not reach availability service (after retries): ${lastErr ? lastErr.message : 'unknown'}`;
     availLoading = false;
-    const box = document.getElementById('avail-diag');
-    if (box) box.textContent = availDebug;
     // re-render times now that loading is finished (in case a date is already picked)
     if (document.getElementById('book-date') && document.getElementById('book-date').value) bkRenderTimes();
   }
