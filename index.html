@@ -2799,6 +2799,7 @@
   // ── Availability-aware booking calendar ──
   const BK_SLOTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // bookable start hours
   let takenByDate = {};
+  let availLoading = false;
   let availDebug = 'BUILD-A';
   let bkCalYear, bkCalMonth;
 
@@ -2810,7 +2811,8 @@
 
   async function loadStudioAvailability(studioId) {
     takenByDate = {};
-    if (!studioId) return;
+    availLoading = true;
+    if (!studioId) { availLoading = false; return; }
     try {
       const res = await fetch(PAYMENT_SERVER + '/availability', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2828,6 +2830,7 @@
       availDebug = `BUILD-A · studio ${studioId} · server rows: ${rows.length} · dates: ${Object.keys(takenByDate).join(', ') || 'none'}`;
       if (rows.length) availDebug += ` · first: ${rows[0].start_time}→${parseTimeToHour(rows[0].start_time)}`;
     } catch (e) { availDebug = `BUILD-A · could not reach availability service: ${e.message}`; }
+    availLoading = false;
     const box = document.getElementById('avail-diag');
     if (box) box.textContent = availDebug;
   }
@@ -2891,6 +2894,7 @@
     const dateStr = document.getElementById('book-date').value;
     const duration = parseInt(document.getElementById('book-hours').value) || 1;
     if (!dateStr) { wrap.innerHTML = ''; hint.textContent = 'Pick a date to see available start times.'; return; }
+    if (availLoading) { wrap.innerHTML = ''; hint.textContent = 'Loading availability…'; return; }
     const selectedTime = document.getElementById('book-time').value;
     let any = false;
     wrap.innerHTML = BK_SLOTS.map(h => {
