@@ -2813,26 +2813,38 @@
     takenByDate = {};
     availLoading = true;
     if (!studioId) { availLoading = false; return; }
-    try {
-      const res = await fetch(PAYMENT_SERVER + '/availability', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studioIds: [studioId] })
-      });
-      const json = await res.json();
-      const rows = json.rows || [];
-      rows.forEach(b => {
-        const start = parseTimeToHour(b.start_time);
-        if (start == null) return;
-        const end = start + (b.hours || 0);
-        const key = (b.booking_date || '').slice(0, 10); // normalise in case it has a time part
-        (takenByDate[key] = takenByDate[key] || []).push([start, end]);
-      });
-      availDebug = `BUILD-A · studio ${studioId} · server rows: ${rows.length} · dates: ${Object.keys(takenByDate).join(', ') || 'none'}`;
-      if (rows.length) availDebug += ` · first: ${rows[0].start_time}→${parseTimeToHour(rows[0].start_time)}`;
-    } catch (e) { availDebug = `BUILD-A · could not reach availability service: ${e.message}`; }
+    let lastErr = null, gotData = false;
+    for (let attempt = 0; attempt < 4 && !gotData; attempt++) {
+      try {
+        const res = await fetch(PAYMENT_SERVER + '/availability', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studioIds: [studioId] })
+        });
+        const json = await res.json();
+        const rows = json.rows || [];
+        takenByDate = {};
+        rows.forEach(b => {
+          const start = parseTimeToHour(b.start_time);
+          if (start == null) return;
+          const end = start + (b.hours || 0);
+          const key = (b.booking_date || '').slice(0, 10); // normalise in case it has a time part
+          (takenByDate[key] = takenByDate[key] || []).push([start, end]);
+        });
+        availDebug = `BUILD-A · studio ${studioId} · server rows: ${rows.length} · dates: ${Object.keys(takenByDate).join(', ') || 'none'}`;
+        if (rows.length) availDebug += ` · first: ${rows[0].start_time}→${parseTimeToHour(rows[0].start_time)}`;
+        gotData = true;
+      } catch (e) {
+        lastErr = e;
+        // backend may be waking up — wait, then retry
+        if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+      }
+    }
+    if (!gotData) availDebug = `BUILD-A · could not reach availability service (after retries): ${lastErr ? lastErr.message : 'unknown'}`;
     availLoading = false;
     const box = document.getElementById('avail-diag');
     if (box) box.textContent = availDebug;
+    // re-render times now that loading is finished (in case a date is already picked)
+    if (document.getElementById('book-date') && document.getElementById('book-date').value) bkRenderTimes();
   }
 
   function bkStartAvailable(dateStr, startHour, duration) {
