@@ -14,7 +14,16 @@ const sbAdmin = createClient(
 );
 
 const app = express();
-app.use(cors({ origin: 'https://thestudiorack.com' }));
+
+// Accept requests from the site whether it loads with or without "www".
+// (A www redirect was causing the browser to block availability/booking calls.)
+const ALLOWED_ORIGINS = ['https://thestudiorack.com', 'https://www.thestudiorack.com'];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  }
+}));
 app.use(express.json());
 
 // Health check
