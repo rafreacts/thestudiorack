@@ -1806,6 +1806,20 @@
   </div>
 </div>
 
+<!-- MESSAGES MODAL -->
+<div class="modal-overlay" id="messages-modal">
+  <div class="payment-modal" style="max-width:520px;">
+    <button class="modal-close" style="position:relative;top:0;right:0;float:right;margin-bottom:16px;" onclick="closeModal('messages-modal')">✕</button>
+    <h2 id="messages-title">Messages</h2>
+    <p style="font-size:13px;color:var(--text-muted);">Questions about your booking — keep it here so everything's in one place.</p>
+    <div id="messages-thread" style="margin:16px 0;max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <textarea id="messages-input" rows="2" placeholder="Type your message…" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px;font-family:inherit;font-size:14px;resize:vertical;"></textarea>
+      <button id="messages-send" onclick="sendMessage()" style="background:var(--text);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:600;cursor:pointer;font-family:inherit;">Send</button>
+    </div>
+  </div>
+</div>
+
 <!-- PAYMENT MODAL -->
 <div class="modal-overlay" id="payment-modal">
   <div class="payment-modal">
@@ -2373,6 +2387,7 @@
     const today = new Date().toISOString().split('T')[0];
     el.innerHTML = bookings.map(b => {
       const s = studioMap[b.studio_id] || {};
+      (window.__bkStudio = window.__bkStudio || {})[b.id] = s.name || 'Studio';
       const status = b.status;
       let badge, color;
       if (status === 'pending')        { badge = 'Awaiting studio confirmation'; color = '#b8860b'; }
@@ -2389,7 +2404,10 @@
         ${loc ? `<div style="font-size:13px;color:var(--text-muted);margin:2px 0;">📍 ${loc}</div>` : ''}
         <div style="font-size:13px;">${b.booking_date} · ${b.start_time} · ${b.hours} hr${b.hours > 1 ? 's' : ''} · £${b.total_price}</div>
         <div style="font-size:12px;font-weight:600;color:${color};margin-top:6px;">${badge}</div>
-        ${canCancel ? `<button onclick="cancelMyBooking('${b.id}')" style="margin-top:10px;border:1px solid #e3b3b0;background:#fff;color:#c0392b;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel booking</button>` : ''}
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        ${(status === 'confirmed' || status === 'owner_paid') ? `<button onclick="openMessages('${b.id}')" style="border:1px solid var(--border);background:#fff;color:var(--text);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">💬 Message studio</button>` : ''}
+        ${canCancel ? `<button onclick="cancelMyBooking('${b.id}')" style="border:1px solid #e3b3b0;background:#fff;color:#c0392b;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel booking</button>` : ''}
+        </div>
       </div>`;
     }).join('');
   }
@@ -2408,6 +2426,66 @@
       alert(r.message || 'Your booking has been cancelled.');
       loadMyBookings();
     } catch (e) { alert('Could not cancel: ' + e.message); }
+  }
+
+  // ── In-platform messaging ──
+  let currentMsgBookingId = null;
+  async function openMessages(bookingId) {
+    currentMsgBookingId = bookingId;
+    const name = (window.__bkStudio && window.__bkStudio[bookingId]) || 'Studio';
+    document.getElementById('messages-title').textContent = 'Messages · ' + name;
+    document.getElementById('messages-input').value = '';
+    document.getElementById('messages-modal').classList.add('active');
+    await loadMessages(bookingId);
+  }
+
+  async function loadMessages(bookingId) {
+    const thread = document.getElementById('messages-thread');
+    thread.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Loading…</p>';
+    const { data: { session } } = await sb.auth.getSession();
+    let msgs = [], you = currentUser?.id;
+    try {
+      const res = await fetch(PAYMENT_SERVER + '/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, token: session?.access_token })
+      });
+      const r = await res.json();
+      if (r.error) { thread.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Could not load messages.</p>'; return; }
+      msgs = r.messages || []; you = r.you || you;
+    } catch (e) { thread.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Could not load messages.</p>'; return; }
+    if (!msgs.length) {
+      thread.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No messages yet. Say hello or ask the studio a question.</p>';
+      return;
+    }
+    thread.innerHTML = msgs.map(m => {
+      const isMine = m.sender_id === you;
+      const when = new Date(m.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const safe = (m.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      return `<div style="align-self:${isMine ? 'flex-end' : 'flex-start'};max-width:80%;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;${isMine ? 'text-align:right;' : ''}">${isMine ? 'You' : (m.sender_name || 'Studio')} · ${when}</div>
+        <div style="background:${isMine ? 'var(--text)' : '#f3f1ec'};color:${isMine ? '#fff' : 'var(--text)'};padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;">${safe}</div>
+      </div>`;
+    }).join('');
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('messages-input');
+    const btn = document.getElementById('messages-send');
+    const text = input.value.trim();
+    if (!text || !currentMsgBookingId) return;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const { data: { session } } = await sb.auth.getSession();
+    try {
+      const res = await fetch(PAYMENT_SERVER + '/send-message', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: currentMsgBookingId, token: session?.access_token, body: text })
+      });
+      const r = await res.json();
+      if (r.error) { alert('Could not send: ' + r.error); }
+      else { input.value = ''; await loadMessages(currentMsgBookingId); }
+    } catch (e) { alert('Could not send: ' + e.message); }
+    btn.disabled = false; btn.textContent = 'Send';
   }
 
   async function loadStudios(typeFilter = '', locationFilter = '', fromDate = '', toDate = '') {
