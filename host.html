@@ -272,6 +272,20 @@
   </div>
 </div>
 
+<!-- MESSAGES MODAL -->
+<div class="modal-overlay" id="messages-modal">
+  <div class="modal" style="max-width:520px;">
+    <h2 id="messages-title">Messages</h2>
+    <p class="sub">Answer the photographer's questions here so the whole booking stays on StudioRack.</p>
+    <div id="messages-thread" style="margin:16px 0;max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <textarea id="messages-input" rows="2" placeholder="Type your reply…" style="flex:1;border:1px solid #d8d8d8;border-radius:10px;padding:10px;font-family:inherit;font-size:14px;resize:vertical;"></textarea>
+      <button id="messages-send" onclick="sendMessage()" style="background:#1a1a1a;color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:600;cursor:pointer;font-family:inherit;">Send</button>
+    </div>
+    <button class="btn-secondary" onclick="closeMessages()" style="margin-top:12px;">Close</button>
+  </div>
+</div>
+
 <!-- ADD / EDIT STUDIO MODAL -->
 <div class="modal-overlay" id="listing-modal">
   <div class="modal">
@@ -549,6 +563,10 @@
         } else {
           badge = `<span class="badge badge-pending">${s}</span>`;
         }
+        (window.__bkStudio = window.__bkStudio || {})[b.id] = (b.studios && b.studios.name) || 'Studio';
+        if (s === 'confirmed' || s === 'owner_paid') {
+          actions = `<button onclick="openMessages('${b.id}')" style="border:1px solid #d8d8d8;background:#fff;color:#222;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">💬 Message</button>`;
+        }
         const contact = [
           b.photographer_email ? `<div class="s-loc">${b.photographer_email}</div>` : '',
           b.photographer_instagram ? `<div class="s-loc">${b.photographer_instagram}</div>` : ''
@@ -600,6 +618,67 @@
       showToast('Booking declined — photographer notified, no charge taken');
       loadDashboard();
     } catch (e) { showToast('Error: ' + e.message); }
+  }
+
+  // ── In-platform messaging ──
+  let currentMsgBookingId = null;
+  async function openMessages(bookingId) {
+    currentMsgBookingId = bookingId;
+    const name = (window.__bkStudio && window.__bkStudio[bookingId]) || 'Studio';
+    document.getElementById('messages-title').textContent = 'Messages · ' + name;
+    document.getElementById('messages-input').value = '';
+    document.getElementById('messages-modal').classList.add('active');
+    await loadMessages(bookingId);
+  }
+  function closeMessages() { document.getElementById('messages-modal').classList.remove('active'); }
+
+  async function loadMessages(bookingId) {
+    const thread = document.getElementById('messages-thread');
+    thread.innerHTML = '<p class="sub">Loading…</p>';
+    const { data: { session } } = await sb.auth.getSession();
+    let msgs = [], you = host?.id;
+    try {
+      const res = await fetch(SERVER + '/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, token: session?.access_token })
+      });
+      const r = await res.json();
+      if (r.error) { thread.innerHTML = '<p class="sub">Could not load messages.</p>'; return; }
+      msgs = r.messages || []; you = r.you || you;
+    } catch (e) { thread.innerHTML = '<p class="sub">Could not load messages.</p>'; return; }
+    if (!msgs.length) {
+      thread.innerHTML = '<p class="sub">No messages yet. The photographer can message you here, and you can reply.</p>';
+      return;
+    }
+    thread.innerHTML = msgs.map(m => {
+      const isMine = m.sender_id === you;
+      const when = new Date(m.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const safe = (m.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      return `<div style="align-self:${isMine ? 'flex-end' : 'flex-start'};max-width:80%;">
+        <div style="font-size:11px;color:#999;margin-bottom:2px;${isMine ? 'text-align:right;' : ''}">${isMine ? 'You' : (m.sender_name || 'Photographer')} · ${when}</div>
+        <div style="background:${isMine ? '#1a1a1a' : '#f3f1ec'};color:${isMine ? '#fff' : '#222'};padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.4;">${safe}</div>
+      </div>`;
+    }).join('');
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('messages-input');
+    const btn = document.getElementById('messages-send');
+    const text = input.value.trim();
+    if (!text || !currentMsgBookingId) return;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const { data: { session } } = await sb.auth.getSession();
+    try {
+      const res = await fetch(SERVER + '/send-message', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: currentMsgBookingId, token: session?.access_token, body: text })
+      });
+      const r = await res.json();
+      if (r.error) { showToast('Could not send: ' + r.error); }
+      else { input.value = ''; await loadMessages(currentMsgBookingId); }
+    } catch (e) { showToast('Could not send: ' + e.message); }
+    btn.disabled = false; btn.textContent = 'Send';
   }
 
   // ── Host availability blocking ──
