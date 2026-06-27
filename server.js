@@ -514,6 +514,107 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
   res.json({ received: true });
 });
 
+// ── In-platform messaging (photographer ⇆ host, after a booking is accepted) ──
+function newMessageEmail({ studioName, bookingDate, senderLabel, body, replyUrl }) {
+  const safe = String(body).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#222;">
+    <h2 style="font-weight:600;">New message about your booking</h2>
+    <p style="color:#555;">Regarding <strong>${studioName}</strong> on <strong>${bookingDate}</strong>:</p>
+    <div style="background:#f6f5f2;border-radius:10px;padding:16px;margin:14px 0;">
+      <div style="font-size:13px;color:#888;margin-bottom:6px;">${senderLabel}</div>
+      <div style="font-size:15px;line-height:1.5;">${safe}</div>
+    </div>
+    <p style="font-size:14px;">Reply directly on StudioRack so everything stays in one place:</p>
+    <p><a href="${replyUrl}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;">Open StudioRack</a></p>
+    <p style="font-size:12px;color:#999;margin-top:20px;">Please keep bookings and payments on StudioRack — it's how you stay covered.</p>
+  </div>`;
+}
+
+// Verify a token belongs to one of the two parties on a booking; returns their role.
+async function verifyPartyForBooking(token, bookingId) {
+  const { data: userData } = await sbAdmin.auth.getUser(token);
+  const uid = userData?.user?.id;
+  if (!uid) return { error: 'Not signed in', code: 401 };
+  const { data: booking } = await sbAdmin.from('bookings').select('*').eq('id', bookingId).single();
+  if (!booking) return { error: 'Booking not found', code: 404 };
+  const { data: studio } = await sbAdmin.from('studios').select('owner_id, name').eq('id', booking.studio_id).single();
+  if (!studio) return { error: 'Studio not found', code: 404 };
+  let role = null;
+  if (booking.photographer_id === uid) role = 'photographer';
+  else if (studio.owner_id === uid) role = 'host';
+  if (!role) return { error: 'Not your booking', code: 403 };
+  return { booking, studio, role, uid };
+}
+
+app.post('/send-message', async (req, res) => {
+  try {
+    const { bookingId, token, body } = req.body;
+    if (!bookingId || !token || !body || !String(body).trim()) return res.status(400).json({ error: 'Missing data' });
+    const text = String(body).trim().slice(0, 2000);
+    const v = await verifyPartyForBooking(token, bookingId);
+    if (v.error) return res.status(v.code).json({ error: v.error });
+
+    // Only allow messaging once a booking is actually accepted/confirmed
+    if (!['confirmed', 'owner_paid'].includes(v.booking.status)) {
+      return res.status(400).json({ error: 'Messaging opens once the booking is confirmed.' });
+    }
+
+    const senderName = v.role === 'photographer'
+      ? (v.booking.photographer_name || 'Photographer')
+      : `${v.studio.name || 'Studio'} (host)`;
+
+    const { data: inserted, error: insErr } = await sbAdmin.from('messages').insert({
+      booking_id: bookingId, sender_id: v.uid, sender_role: v.role, sender_name: senderName, body: text
+    }).select().single();
+    if (insErr) return res.status(500).json({ error: insErr.message });
+
+    // Work out who should be notified
+    let recipientEmail = null, replyUrl;
+    if (v.role === 'photographer') {
+      const { data: hostData } = await sbAdmin.auth.admin.getUserById(v.studio.owner_id);
+      recipientEmail = hostData?.user?.email;
+      replyUrl = 'https://thestudiorack.com/host.html';
+    } else {
+      const { data: photogData } = await sbAdmin.auth.admin.getUserById(v.booking.photographer_id);
+      recipientEmail = photogData?.user?.email || v.booking.photographer_email;
+      replyUrl = 'https://thestudiorack.com';
+    }
+
+    const emailPayload = {
+      from: FROM,
+      subject: `New message about your booking — ${v.studio.name}`,
+      html: newMessageEmail({ studioName: v.studio.name, bookingDate: v.booking.booking_date, senderLabel: senderName, body: text, replyUrl })
+    };
+    // Send to the other party, BCC StudioRack for oversight; if no recipient email, still send the oversight copy
+    if (recipientEmail) {
+      await resend.emails.send({ ...emailPayload, to: recipientEmail, bcc: 'raphael@thestudiorack.com' });
+    } else {
+      await resend.emails.send({ ...emailPayload, to: 'raphael@thestudiorack.com' });
+    }
+
+    res.json({ success: true, message: inserted });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/messages', async (req, res) => {
+  try {
+    const { bookingId, token } = req.body;
+    if (!bookingId || !token) return res.status(400).json({ error: 'Missing data' });
+    const v = await verifyPartyForBooking(token, bookingId);
+    if (v.error) return res.status(v.code).json({ error: v.error });
+    const { data: msgs } = await sbAdmin.from('messages')
+      .select('id, sender_id, sender_role, sender_name, body, created_at')
+      .eq('booking_id', bookingId).order('created_at', { ascending: true });
+    res.json({ messages: msgs || [], you: v.uid });
+  } catch (error) {
+    console.error('Fetch messages error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`StudioRack payment server running on port ${PORT}`);
